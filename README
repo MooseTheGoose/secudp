@@ -1,15 +1,17 @@
-Please visit the ENet homepage at http://enet.bespin.org for installation
-and usage instructions.
+# SecUDP
 
-If you obtained this package from github, the quick description on how to build
-is:
+SecUDP is a fork of ENet by Lee Salzman with built-in encryption
+and server authentication. This is for developers who need only
+some basic encryption for things like chats, message authentication,
+or other such things, but don't want another dependency to manage 
+and/or want to save a couple days incorporating that with ENet.
 
-# Generate the build system.
+ENet homepage -- http://enet.bespin.org
 
-autoreconf -vfi
+# TODO
 
-# Compile and install the library.
-
-./configure && make && make install
+* Learn how to use ENet (*Blush* This is embarrassing...)
+* Create light wrapper around ENet hosts and peers with
+  other things like secret keys and the like.
 
 
