@@ -1,22 +1,22 @@
 pkgconfigdir = $(libdir)/pkgconfig
-nodist_pkgconfig_DATA = libenet.pc
+nodist_pkgconfig_DATA = SecUdp.pc
 
-enetincludedir=$(includedir)/enet
-enetinclude_HEADERS = \
-	include/enet/callbacks.h \
-	include/enet/enet.h \
-	include/enet/list.h \
-	include/enet/protocol.h \
-	include/enet/time.h \
-	include/enet/types.h \
-	include/enet/unix.h \
-	include/enet/utility.h \
-	include/enet/win32.h
+SecUdpincludedir=$(includedir)/SecUdp
+SecUdpinclude_HEADERS = \
+	include/SecUdp/callbacks.h \
+	include/SecUdp/SecUdp.h \
+	include/SecUdp/list.h \
+	include/SecUdp/protocol.h \
+	include/SecUdp/time.h \
+	include/SecUdp/types.h \
+	include/SecUdp/unix.h \
+	include/SecUdp/utility.h \
+	include/SecUdp/win32.h
 
-lib_LTLIBRARIES = libenet.la
-libenet_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c
+lib_LTLIBRARIES = SecUdp.la
+SecUdp_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c
 # see info '(libtool) Updating version info' before making a release
-libenet_la_LDFLAGS = $(AM_LDFLAGS) -version-info 7:4:0
+SecUdp_la_LDFLAGS = $(AM_LDFLAGS) -version-info 7:4:0
 AM_CPPFLAGS = -I$(top_srcdir)/include
 
 ACLOCAL_AMFLAGS = -Im4

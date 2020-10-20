@@ -1,8 +1,8 @@
-solution "enet"
+solution "SecUdp"
 	configurations { "Debug", "Release" }
 	platforms { "x32", "x64" }
 
-	project "enet_static"
+	project "SecUdp_static"
 		kind "StaticLib"
 		language "C"
 		
@@ -28,7 +28,7 @@ solution "enet"
 		configuration { "Release", "x64" }
 			targetsuffix "64"
 
-	project "enet"
+	project "SecUdp"
 		kind "SharedLib"
 		language "C"
 		
