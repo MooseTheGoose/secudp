@@ -1,39 +1,39 @@
 /** 
  @file  packet.c
- @brief SecUdp packet management functions
+ @brief ENet packet management functions
 */
 #include <string.h>
-#define SECUDP_BUILDING_LIB 1
-#include "SecUdp/SecUdp.h"
+#define ENET_BUILDING_LIB 1
+#include "enet/enet.h"
 
-/** @defgroup Packet SecUdp packet functions 
+/** @defgroup Packet ENet packet functions 
     @{ 
 */
 
 /** Creates a packet that may be sent to a peer.
     @param data         initial contents of the packet's data; the packet's data will remain uninitialized if data is NULL.
     @param dataLength   size of the data allocated for this packet
-    @param flags        flags for this packet as described for the SecUdpPacket structure.
+    @param flags        flags for this packet as described for the ENetPacket structure.
     @returns the packet on success, NULL on failure
 */
-SecUdpPacket *
-secudp_packet_create (const void * data, size_t dataLength, secudp_uint32 flags)
+ENetPacket *
+enet_packet_create (const void * data, size_t dataLength, enet_uint32 flags)
 {
-    SecUdpPacket * packet = (SecUdpPacket *) secudp_malloc (sizeof (SecUdpPacket));
+    ENetPacket * packet = (ENetPacket *) enet_malloc (sizeof (ENetPacket));
     if (packet == NULL)
       return NULL;
 
-    if (flags & SECUDP_PACKET_FLAG_NO_ALLOCATE)
-      packet -> data = (secudp_uint8 *) data;
+    if (flags & ENET_PACKET_FLAG_NO_ALLOCATE)
+      packet -> data = (enet_uint8 *) data;
     else
     if (dataLength <= 0)
       packet -> data = NULL;
     else
     {
-       packet -> data = (secudp_uint8 *) secudp_malloc (dataLength);
+       packet -> data = (enet_uint8 *) enet_malloc (dataLength);
        if (packet -> data == NULL)
        {
-          secudp_free (packet);
+          enet_free (packet);
           return NULL;
        }
 
@@ -54,17 +54,17 @@ secudp_packet_create (const void * data, size_t dataLength, secudp_uint32 flags)
     @param packet packet to be destroyed
 */
 void
-secudp_packet_destroy (SecUdpPacket * packet)
+enet_packet_destroy (ENetPacket * packet)
 {
     if (packet == NULL)
       return;
 
     if (packet -> freeCallback != NULL)
       (* packet -> freeCallback) (packet);
-    if (! (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE) &&
+    if (! (packet -> flags & ENET_PACKET_FLAG_NO_ALLOCATE) &&
         packet -> data != NULL)
-      secudp_free (packet -> data);
-    secudp_free (packet);
+      enet_free (packet -> data);
+    enet_free (packet);
 }
 
 /** Attempts to resize the data in the packet to length specified in the 
@@ -74,23 +74,23 @@ secudp_packet_destroy (SecUdpPacket * packet)
     @returns 0 on success, < 0 on failure
 */
 int
-secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
+enet_packet_resize (ENetPacket * packet, size_t dataLength)
 {
-    secudp_uint8 * newData;
+    enet_uint8 * newData;
    
-    if (dataLength <= packet -> dataLength || (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE))
+    if (dataLength <= packet -> dataLength || (packet -> flags & ENET_PACKET_FLAG_NO_ALLOCATE))
     {
        packet -> dataLength = dataLength;
 
        return 0;
     }
 
-    newData = (secudp_uint8 *) secudp_malloc (dataLength);
+    newData = (enet_uint8 *) enet_malloc (dataLength);
     if (newData == NULL)
       return -1;
 
     memcpy (newData, packet -> data, packet -> dataLength);
-    secudp_free (packet -> data);
+    enet_free (packet -> data);
     
     packet -> data = newData;
     packet -> dataLength = dataLength;
@@ -99,9 +99,9 @@ secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
 }
 
 static int initializedCRC32 = 0;
-static secudp_uint32 crcTable [256];
+static enet_uint32 crcTable [256];
 
-static secudp_uint32 
+static enet_uint32 
 reflect_crc (int val, int bits)
 {
     int result = 0, bit;
@@ -122,7 +122,7 @@ initialize_crc32 (void)
 
     for (byte = 0; byte < 256; ++ byte)
     {
-        secudp_uint32 crc = reflect_crc (byte, 8) << 24;
+        enet_uint32 crc = reflect_crc (byte, 8) << 24;
         int offset;
 
         for(offset = 0; offset < 8; ++ offset)
@@ -139,16 +139,16 @@ initialize_crc32 (void)
     initializedCRC32 = 1;
 }
     
-secudp_uint32
-secudp_crc32 (const SecUdpBuffer * buffers, size_t bufferCount)
+enet_uint32
+enet_crc32 (const ENetBuffer * buffers, size_t bufferCount)
 {
-    secudp_uint32 crc = 0xFFFFFFFF;
+    enet_uint32 crc = 0xFFFFFFFF;
     
     if (! initializedCRC32) initialize_crc32 ();
 
     while (bufferCount -- > 0)
     {
-        const secudp_uint8 * data = (const secudp_uint8 *) buffers -> data,
+        const enet_uint8 * data = (const enet_uint8 *) buffers -> data,
                          * dataEnd = & data [buffers -> dataLength];
 
         while (data < dataEnd)
@@ -159,7 +159,7 @@ secudp_crc32 (const SecUdpBuffer * buffers, size_t bufferCount)
         ++ buffers;
     }
 
-    return SECUDP_HOST_TO_NET_32 (~ crc);
+    return ENET_HOST_TO_NET_32 (~ crc);
 }
 
 /** @} */

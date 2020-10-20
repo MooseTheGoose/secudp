@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-project(SecUdp)
+project(enet)
 
 # The "configure" step.
 include(CheckFunctionExists)
@@ -57,7 +57,7 @@ endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-set(INCLUDE_FILES_PREFIX include/SecUdp)
+set(INCLUDE_FILES_PREFIX include/enet)
 set(INCLUDE_FILES
     ${INCLUDE_FILES_PREFIX}/callbacks.h
     ${INCLUDE_FILES_PREFIX}/enet.h

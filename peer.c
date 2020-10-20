@@ -1,33 +1,33 @@
 /** 
  @file  peer.c
- @brief SecUdp peer management functions
+ @brief ENet peer management functions
 */
 #include <string.h>
-#define SECUDP_BUILDING_LIB 1
-#include "SecUdp/SecUdp.h"
+#define ENET_BUILDING_LIB 1
+#include "enet/enet.h"
 
-/** @defgroup peer SecUdp peer functions 
+/** @defgroup peer ENet peer functions 
     @{
 */
 
 /** Configures throttle parameter for a peer.
 
-    Unreliable packets are dropped by SecUdp in response to the varying conditions
+    Unreliable packets are dropped by ENet in response to the varying conditions
     of the Internet connection to the peer.  The throttle represents a probability
-    that an unreliable packet should not be dropped and thus sent by SecUdp to the peer.
+    that an unreliable packet should not be dropped and thus sent by ENet to the peer.
     The lowest mean round trip time from the sending of a reliable packet to the
     receipt of its acknowledgement is measured over an amount of time specified by
     the interval parameter in milliseconds.  If a measured round trip time happens to
     be significantly less than the mean round trip time measured over the interval, 
     then the throttle probability is increased to allow more traffic by an amount
-    specified in the acceleration parameter, which is a ratio to the SECUDP_PEER_PACKET_THROTTLE_SCALE
+    specified in the acceleration parameter, which is a ratio to the ENET_PEER_PACKET_THROTTLE_SCALE
     constant.  If a measured round trip time happens to be significantly greater than
     the mean round trip time measured over the interval, then the throttle probability
     is decreased to limit traffic by an amount specified in the deceleration parameter, which
-    is a ratio to the SECUDP_PEER_PACKET_THROTTLE_SCALE constant.  When the throttle has
-    a value of SECUDP_PEER_PACKET_THROTTLE_SCALE, no unreliable packets are dropped by 
-    SecUdp, and so 100% of all unreliable packets will be sent.  When the throttle has a
-    value of 0, all unreliable packets are dropped by SecUdp, and so 0% of all unreliable
+    is a ratio to the ENET_PEER_PACKET_THROTTLE_SCALE constant.  When the throttle has
+    a value of ENET_PEER_PACKET_THROTTLE_SCALE, no unreliable packets are dropped by 
+    ENet, and so 100% of all unreliable packets will be sent.  When the throttle has a
+    value of 0, all unreliable packets are dropped by ENet, and so 0% of all unreliable
     packets will be sent.  Intermediate values for the throttle represent intermediate
     probabilities between 0% and 100% of unreliable packets being sent.  The bandwidth
     limits of the local and foreign hosts are taken into account to determine a 
@@ -35,31 +35,31 @@
     the best of conditions.
 
     @param peer peer to configure 
-    @param interval interval, in milliseconds, over which to measure lowest mean RTT; the default value is SECUDP_PEER_PACKET_THROTTLE_INTERVAL.
+    @param interval interval, in milliseconds, over which to measure lowest mean RTT; the default value is ENET_PEER_PACKET_THROTTLE_INTERVAL.
     @param acceleration rate at which to increase the throttle probability as mean RTT declines
     @param deceleration rate at which to decrease the throttle probability as mean RTT increases
 */
 void
-secudp_peer_throttle_configure (SecUdpPeer * peer, secudp_uint32 interval, secudp_uint32 acceleration, secudp_uint32 deceleration)
+enet_peer_throttle_configure (ENetPeer * peer, enet_uint32 interval, enet_uint32 acceleration, enet_uint32 deceleration)
 {
-    SecUdpProtocol command;
+    ENetProtocol command;
 
     peer -> packetThrottleInterval = interval;
     peer -> packetThrottleAcceleration = acceleration;
     peer -> packetThrottleDeceleration = deceleration;
 
-    command.header.command = SECUDP_PROTOCOL_COMMAND_THROTTLE_CONFIGURE | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+    command.header.command = ENET_PROTOCOL_COMMAND_THROTTLE_CONFIGURE | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
     command.header.channelID = 0xFF;
 
-    command.throttleConfigure.packetThrottleInterval = SECUDP_HOST_TO_NET_32 (interval);
-    command.throttleConfigure.packetThrottleAcceleration = SECUDP_HOST_TO_NET_32 (acceleration);
-    command.throttleConfigure.packetThrottleDeceleration = SECUDP_HOST_TO_NET_32 (deceleration);
+    command.throttleConfigure.packetThrottleInterval = ENET_HOST_TO_NET_32 (interval);
+    command.throttleConfigure.packetThrottleAcceleration = ENET_HOST_TO_NET_32 (acceleration);
+    command.throttleConfigure.packetThrottleDeceleration = ENET_HOST_TO_NET_32 (deceleration);
 
-    secudp_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
+    enet_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
 }
 
 int
-secudp_peer_throttle (SecUdpPeer * peer, secudp_uint32 rtt)
+enet_peer_throttle (ENetPeer * peer, enet_uint32 rtt)
 {
     if (peer -> lastRoundTripTime <= peer -> lastRoundTripTimeVariance)
     {
@@ -97,47 +97,47 @@ secudp_peer_throttle (SecUdpPeer * peer, secudp_uint32 rtt)
     @retval < 0 on failure
 */
 int
-secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * packet)
+enet_peer_send (ENetPeer * peer, enet_uint8 channelID, ENetPacket * packet)
 {
-   SecUdpChannel * channel = & peer -> channels [channelID];
-   SecUdpProtocol command;
+   ENetChannel * channel = & peer -> channels [channelID];
+   ENetProtocol command;
    size_t fragmentLength;
 
-   if (peer -> state != SECUDP_PEER_STATE_CONNECTED ||
+   if (peer -> state != ENET_PEER_STATE_CONNECTED ||
        channelID >= peer -> channelCount ||
        packet -> dataLength > peer -> host -> maximumPacketSize)
      return -1;
 
-   fragmentLength = peer -> mtu - sizeof (SecUdpProtocolHeader) - sizeof (SecUdpProtocolSendFragment);
+   fragmentLength = peer -> mtu - sizeof (ENetProtocolHeader) - sizeof (ENetProtocolSendFragment);
    if (peer -> host -> checksum != NULL)
-     fragmentLength -= sizeof(secudp_uint32);
+     fragmentLength -= sizeof(enet_uint32);
 
    if (packet -> dataLength > fragmentLength)
    {
-      secudp_uint32 fragmentCount = (packet -> dataLength + fragmentLength - 1) / fragmentLength,
+      enet_uint32 fragmentCount = (packet -> dataLength + fragmentLength - 1) / fragmentLength,
              fragmentNumber,
              fragmentOffset;
-      secudp_uint8 commandNumber;
-      secudp_uint16 startSequenceNumber; 
-      SecUdpList fragments;
-      SecUdpOutgoingCommand * fragment;
+      enet_uint8 commandNumber;
+      enet_uint16 startSequenceNumber; 
+      ENetList fragments;
+      ENetOutgoingCommand * fragment;
 
-      if (fragmentCount > SECUDP_PROTOCOL_MAXIMUM_FRAGMENT_COUNT)
+      if (fragmentCount > ENET_PROTOCOL_MAXIMUM_FRAGMENT_COUNT)
         return -1;
 
-      if ((packet -> flags & (SECUDP_PACKET_FLAG_RELIABLE | SECUDP_PACKET_FLAG_UNRELIABLE_FRAGMENT)) == SECUDP_PACKET_FLAG_UNRELIABLE_FRAGMENT &&
+      if ((packet -> flags & (ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT)) == ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT &&
           channel -> outgoingUnreliableSequenceNumber < 0xFFFF)
       {
-         commandNumber = SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT;
-         startSequenceNumber = SECUDP_HOST_TO_NET_16 (channel -> outgoingUnreliableSequenceNumber + 1);
+         commandNumber = ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT;
+         startSequenceNumber = ENET_HOST_TO_NET_16 (channel -> outgoingUnreliableSequenceNumber + 1);
       }
       else
       {
-         commandNumber = SECUDP_PROTOCOL_COMMAND_SEND_FRAGMENT | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
-         startSequenceNumber = SECUDP_HOST_TO_NET_16 (channel -> outgoingReliableSequenceNumber + 1);
+         commandNumber = ENET_PROTOCOL_COMMAND_SEND_FRAGMENT | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+         startSequenceNumber = ENET_HOST_TO_NET_16 (channel -> outgoingReliableSequenceNumber + 1);
       }
         
-      secudp_list_clear (& fragments);
+      enet_list_clear (& fragments);
 
       for (fragmentNumber = 0,
              fragmentOffset = 0;
@@ -148,14 +148,14 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
          if (packet -> dataLength - fragmentOffset < fragmentLength)
            fragmentLength = packet -> dataLength - fragmentOffset;
 
-         fragment = (SecUdpOutgoingCommand *) secudp_malloc (sizeof (SecUdpOutgoingCommand));
+         fragment = (ENetOutgoingCommand *) enet_malloc (sizeof (ENetOutgoingCommand));
          if (fragment == NULL)
          {
-            while (! secudp_list_empty (& fragments))
+            while (! enet_list_empty (& fragments))
             {
-               fragment = (SecUdpOutgoingCommand *) secudp_list_remove (secudp_list_begin (& fragments));
+               fragment = (ENetOutgoingCommand *) enet_list_remove (enet_list_begin (& fragments));
                
-               secudp_free (fragment);
+               enet_free (fragment);
             }
             
             return -1;
@@ -167,22 +167,22 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
          fragment -> command.header.command = commandNumber;
          fragment -> command.header.channelID = channelID;
          fragment -> command.sendFragment.startSequenceNumber = startSequenceNumber;
-         fragment -> command.sendFragment.dataLength = SECUDP_HOST_TO_NET_16 (fragmentLength);
-         fragment -> command.sendFragment.fragmentCount = SECUDP_HOST_TO_NET_32 (fragmentCount);
-         fragment -> command.sendFragment.fragmentNumber = SECUDP_HOST_TO_NET_32 (fragmentNumber);
-         fragment -> command.sendFragment.totalLength = SECUDP_HOST_TO_NET_32 (packet -> dataLength);
-         fragment -> command.sendFragment.fragmentOffset = SECUDP_NET_TO_HOST_32 (fragmentOffset);
+         fragment -> command.sendFragment.dataLength = ENET_HOST_TO_NET_16 (fragmentLength);
+         fragment -> command.sendFragment.fragmentCount = ENET_HOST_TO_NET_32 (fragmentCount);
+         fragment -> command.sendFragment.fragmentNumber = ENET_HOST_TO_NET_32 (fragmentNumber);
+         fragment -> command.sendFragment.totalLength = ENET_HOST_TO_NET_32 (packet -> dataLength);
+         fragment -> command.sendFragment.fragmentOffset = ENET_NET_TO_HOST_32 (fragmentOffset);
         
-         secudp_list_insert (secudp_list_end (& fragments), fragment);
+         enet_list_insert (enet_list_end (& fragments), fragment);
       }
 
       packet -> referenceCount += fragmentNumber;
 
-      while (! secudp_list_empty (& fragments))
+      while (! enet_list_empty (& fragments))
       {
-         fragment = (SecUdpOutgoingCommand *) secudp_list_remove (secudp_list_begin (& fragments));
+         fragment = (ENetOutgoingCommand *) enet_list_remove (enet_list_begin (& fragments));
  
-         secudp_peer_setup_outgoing_command (peer, fragment);
+         enet_peer_setup_outgoing_command (peer, fragment);
       }
 
       return 0;
@@ -190,24 +190,24 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
 
    command.header.channelID = channelID;
 
-   if ((packet -> flags & (SECUDP_PACKET_FLAG_RELIABLE | SECUDP_PACKET_FLAG_UNSEQUENCED)) == SECUDP_PACKET_FLAG_UNSEQUENCED)
+   if ((packet -> flags & (ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_UNSEQUENCED)) == ENET_PACKET_FLAG_UNSEQUENCED)
    {
-      command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED | SECUDP_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;
-      command.sendUnsequenced.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.header.command = ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED | ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;
+      command.sendUnsequenced.dataLength = ENET_HOST_TO_NET_16 (packet -> dataLength);
    }
    else 
-   if (packet -> flags & SECUDP_PACKET_FLAG_RELIABLE || channel -> outgoingUnreliableSequenceNumber >= 0xFFFF)
+   if (packet -> flags & ENET_PACKET_FLAG_RELIABLE || channel -> outgoingUnreliableSequenceNumber >= 0xFFFF)
    {
-      command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_RELIABLE | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
-      command.sendReliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.header.command = ENET_PROTOCOL_COMMAND_SEND_RELIABLE | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+      command.sendReliable.dataLength = ENET_HOST_TO_NET_16 (packet -> dataLength);
    }
    else
    {
-      command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE;
-      command.sendUnreliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.header.command = ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE;
+      command.sendUnreliable.dataLength = ENET_HOST_TO_NET_16 (packet -> dataLength);
    }
 
-   if (secudp_peer_queue_outgoing_command (peer, & command, packet, 0, packet -> dataLength) == NULL)
+   if (enet_peer_queue_outgoing_command (peer, & command, packet, 0, packet -> dataLength) == NULL)
      return -1;
 
    return 0;
@@ -218,16 +218,16 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
     @param channelID holds the channel ID of the channel the packet was received on success
     @returns a pointer to the packet, or NULL if there are no available incoming queued packets
 */
-SecUdpPacket *
-secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
+ENetPacket *
+enet_peer_receive (ENetPeer * peer, enet_uint8 * channelID)
 {
-   SecUdpIncomingCommand * incomingCommand;
-   SecUdpPacket * packet;
+   ENetIncomingCommand * incomingCommand;
+   ENetPacket * packet;
    
-   if (secudp_list_empty (& peer -> dispatchedCommands))
+   if (enet_list_empty (& peer -> dispatchedCommands))
      return NULL;
 
-   incomingCommand = (SecUdpIncomingCommand *) secudp_list_remove (secudp_list_begin (& peer -> dispatchedCommands));
+   incomingCommand = (ENetIncomingCommand *) enet_list_remove (enet_list_begin (& peer -> dispatchedCommands));
 
    if (channelID != NULL)
      * channelID = incomingCommand -> command.header.channelID;
@@ -237,9 +237,9 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
    -- packet -> referenceCount;
 
    if (incomingCommand -> fragments != NULL)
-     secudp_free (incomingCommand -> fragments);
+     enet_free (incomingCommand -> fragments);
 
-   secudp_free (incomingCommand);
+   enet_free (incomingCommand);
 
    peer -> totalWaitingData -= packet -> dataLength;
 
@@ -247,82 +247,82 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
 }
 
 static void
-secudp_peer_reset_outgoing_commands (SecUdpList * queue)
+enet_peer_reset_outgoing_commands (ENetList * queue)
 {
-    SecUdpOutgoingCommand * outgoingCommand;
+    ENetOutgoingCommand * outgoingCommand;
 
-    while (! secudp_list_empty (queue))
+    while (! enet_list_empty (queue))
     {
-       outgoingCommand = (SecUdpOutgoingCommand *) secudp_list_remove (secudp_list_begin (queue));
+       outgoingCommand = (ENetOutgoingCommand *) enet_list_remove (enet_list_begin (queue));
 
        if (outgoingCommand -> packet != NULL)
        {
           -- outgoingCommand -> packet -> referenceCount;
 
           if (outgoingCommand -> packet -> referenceCount == 0)
-            secudp_packet_destroy (outgoingCommand -> packet);
+            enet_packet_destroy (outgoingCommand -> packet);
        }
 
-       secudp_free (outgoingCommand);
+       enet_free (outgoingCommand);
     }
 }
 
 static void
-secudp_peer_remove_incoming_commands (SecUdpList * queue, SecUdpListIterator startCommand, SecUdpListIterator endCommand, SecUdpIncomingCommand * excludeCommand)
+enet_peer_remove_incoming_commands (ENetList * queue, ENetListIterator startCommand, ENetListIterator endCommand, ENetIncomingCommand * excludeCommand)
 {
-    SecUdpListIterator currentCommand;    
+    ENetListIterator currentCommand;    
     
     for (currentCommand = startCommand; currentCommand != endCommand; )
     {
-       SecUdpIncomingCommand * incomingCommand = (SecUdpIncomingCommand *) currentCommand;
+       ENetIncomingCommand * incomingCommand = (ENetIncomingCommand *) currentCommand;
 
-       currentCommand = secudp_list_next (currentCommand);
+       currentCommand = enet_list_next (currentCommand);
 
        if (incomingCommand == excludeCommand)
          continue;
 
-       secudp_list_remove (& incomingCommand -> incomingCommandList);
+       enet_list_remove (& incomingCommand -> incomingCommandList);
  
        if (incomingCommand -> packet != NULL)
        {
           -- incomingCommand -> packet -> referenceCount;
 
           if (incomingCommand -> packet -> referenceCount == 0)
-            secudp_packet_destroy (incomingCommand -> packet);
+            enet_packet_destroy (incomingCommand -> packet);
        }
 
        if (incomingCommand -> fragments != NULL)
-         secudp_free (incomingCommand -> fragments);
+         enet_free (incomingCommand -> fragments);
 
-       secudp_free (incomingCommand);
+       enet_free (incomingCommand);
     }
 }
 
 static void
-secudp_peer_reset_incoming_commands (SecUdpList * queue)
+enet_peer_reset_incoming_commands (ENetList * queue)
 {
-    secudp_peer_remove_incoming_commands(queue, secudp_list_begin (queue), secudp_list_end (queue), NULL);
+    enet_peer_remove_incoming_commands(queue, enet_list_begin (queue), enet_list_end (queue), NULL);
 }
  
 void
-secudp_peer_reset_queues (SecUdpPeer * peer)
+enet_peer_reset_queues (ENetPeer * peer)
 {
-    SecUdpChannel * channel;
+    ENetChannel * channel;
 
-    if (peer -> flags & SECUDP_PEER_FLAG_NEEDS_DISPATCH)
+    if (peer -> flags & ENET_PEER_FLAG_NEEDS_DISPATCH)
     {
-       secudp_list_remove (& peer -> dispatchList);
+       enet_list_remove (& peer -> dispatchList);
 
-       peer -> flags &= ~ SECUDP_PEER_FLAG_NEEDS_DISPATCH;
+       peer -> flags &= ~ ENET_PEER_FLAG_NEEDS_DISPATCH;
     }
 
-    while (! secudp_list_empty (& peer -> acknowledgements))
-      secudp_free (secudp_list_remove (secudp_list_begin (& peer -> acknowledgements)));
+    while (! enet_list_empty (& peer -> acknowledgements))
+      enet_free (enet_list_remove (enet_list_begin (& peer -> acknowledgements)));
 
-    secudp_peer_reset_outgoing_commands (& peer -> sentReliableCommands);
-    secudp_peer_reset_outgoing_commands (& peer -> sentUnreliableCommands);
-    secudp_peer_reset_outgoing_commands (& peer -> outgoingCommands);
-    secudp_peer_reset_incoming_commands (& peer -> dispatchedCommands);
+    enet_peer_reset_outgoing_commands (& peer -> sentReliableCommands);
+    enet_peer_reset_outgoing_commands (& peer -> sentUnreliableCommands);
+    enet_peer_reset_outgoing_commands (& peer -> outgoingCommands);
+    enet_peer_reset_incoming_commands (& peer -> dispatchedCommands);
 
     if (peer -> channels != NULL && peer -> channelCount > 0)
     {
@@ -330,11 +330,11 @@ secudp_peer_reset_queues (SecUdpPeer * peer)
              channel < & peer -> channels [peer -> channelCount];
              ++ channel)
         {
-            secudp_peer_reset_incoming_commands (& channel -> incomingReliableCommands);
-            secudp_peer_reset_incoming_commands (& channel -> incomingUnreliableCommands);
+            enet_peer_reset_incoming_commands (& channel -> incomingReliableCommands);
+            enet_peer_reset_incoming_commands (& channel -> incomingUnreliableCommands);
         }
 
-        secudp_free (peer -> channels);
+        enet_free (peer -> channels);
     }
 
     peer -> channels = NULL;
@@ -342,9 +342,9 @@ secudp_peer_reset_queues (SecUdpPeer * peer)
 }
 
 void
-secudp_peer_on_connect (SecUdpPeer * peer)
+enet_peer_on_connect (ENetPeer * peer)
 {
-    if (peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER)
+    if (peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER)
     {
         if (peer -> incomingBandwidth != 0)
           ++ peer -> host -> bandwidthLimitedPeers;
@@ -354,9 +354,9 @@ secudp_peer_on_connect (SecUdpPeer * peer)
 }
 
 void
-secudp_peer_on_disconnect (SecUdpPeer * peer)
+enet_peer_on_disconnect (ENetPeer * peer)
 {
-    if (peer -> state == SECUDP_PEER_STATE_CONNECTED || peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
+    if (peer -> state == ENET_PEER_STATE_CONNECTED || peer -> state == ENET_PEER_STATE_DISCONNECT_LATER)
     {
         if (peer -> incomingBandwidth != 0)
           -- peer -> host -> bandwidthLimitedPeers;
@@ -371,14 +371,14 @@ secudp_peer_on_disconnect (SecUdpPeer * peer)
     on its connection to the local host.
 */
 void
-secudp_peer_reset (SecUdpPeer * peer)
+enet_peer_reset (ENetPeer * peer)
 {
-    secudp_peer_on_disconnect (peer);
+    enet_peer_on_disconnect (peer);
         
-    peer -> outgoingPeerID = SECUDP_PROTOCOL_MAXIMUM_PEER_ID;
+    peer -> outgoingPeerID = ENET_PROTOCOL_MAXIMUM_PEER_ID;
     peer -> connectID = 0;
 
-    peer -> state = SECUDP_PEER_STATE_DISCONNECTED;
+    peer -> state = ENET_PEER_STATE_DISCONNECTED;
 
     peer -> incomingBandwidth = 0;
     peer -> outgoingBandwidth = 0;
@@ -395,27 +395,27 @@ secudp_peer_reset (SecUdpPeer * peer)
     peer -> packetsLost = 0;
     peer -> packetLoss = 0;
     peer -> packetLossVariance = 0;
-    peer -> packetThrottle = SECUDP_PEER_DEFAULT_PACKET_THROTTLE;
-    peer -> packetThrottleLimit = SECUDP_PEER_PACKET_THROTTLE_SCALE;
+    peer -> packetThrottle = ENET_PEER_DEFAULT_PACKET_THROTTLE;
+    peer -> packetThrottleLimit = ENET_PEER_PACKET_THROTTLE_SCALE;
     peer -> packetThrottleCounter = 0;
     peer -> packetThrottleEpoch = 0;
-    peer -> packetThrottleAcceleration = SECUDP_PEER_PACKET_THROTTLE_ACCELERATION;
-    peer -> packetThrottleDeceleration = SECUDP_PEER_PACKET_THROTTLE_DECELERATION;
-    peer -> packetThrottleInterval = SECUDP_PEER_PACKET_THROTTLE_INTERVAL;
-    peer -> pingInterval = SECUDP_PEER_PING_INTERVAL;
-    peer -> timeoutLimit = SECUDP_PEER_TIMEOUT_LIMIT;
-    peer -> timeoutMinimum = SECUDP_PEER_TIMEOUT_MINIMUM;
-    peer -> timeoutMaximum = SECUDP_PEER_TIMEOUT_MAXIMUM;
-    peer -> lastRoundTripTime = SECUDP_PEER_DEFAULT_ROUND_TRIP_TIME;
-    peer -> lowestRoundTripTime = SECUDP_PEER_DEFAULT_ROUND_TRIP_TIME;
+    peer -> packetThrottleAcceleration = ENET_PEER_PACKET_THROTTLE_ACCELERATION;
+    peer -> packetThrottleDeceleration = ENET_PEER_PACKET_THROTTLE_DECELERATION;
+    peer -> packetThrottleInterval = ENET_PEER_PACKET_THROTTLE_INTERVAL;
+    peer -> pingInterval = ENET_PEER_PING_INTERVAL;
+    peer -> timeoutLimit = ENET_PEER_TIMEOUT_LIMIT;
+    peer -> timeoutMinimum = ENET_PEER_TIMEOUT_MINIMUM;
+    peer -> timeoutMaximum = ENET_PEER_TIMEOUT_MAXIMUM;
+    peer -> lastRoundTripTime = ENET_PEER_DEFAULT_ROUND_TRIP_TIME;
+    peer -> lowestRoundTripTime = ENET_PEER_DEFAULT_ROUND_TRIP_TIME;
     peer -> lastRoundTripTimeVariance = 0;
     peer -> highestRoundTripTimeVariance = 0;
-    peer -> roundTripTime = SECUDP_PEER_DEFAULT_ROUND_TRIP_TIME;
+    peer -> roundTripTime = ENET_PEER_DEFAULT_ROUND_TRIP_TIME;
     peer -> roundTripTimeVariance = 0;
     peer -> mtu = peer -> host -> mtu;
     peer -> reliableDataInTransit = 0;
     peer -> outgoingReliableSequenceNumber = 0;
-    peer -> windowSize = SECUDP_PROTOCOL_MAXIMUM_WINDOW_SIZE;
+    peer -> windowSize = ENET_PROTOCOL_MAXIMUM_WINDOW_SIZE;
     peer -> incomingUnsequencedGroup = 0;
     peer -> outgoingUnsequencedGroup = 0;
     peer -> eventData = 0;
@@ -424,28 +424,28 @@ secudp_peer_reset (SecUdpPeer * peer)
 
     memset (peer -> unsequencedWindow, 0, sizeof (peer -> unsequencedWindow));
     
-    secudp_peer_reset_queues (peer);
+    enet_peer_reset_queues (peer);
 }
 
 /** Sends a ping request to a peer.
     @param peer destination for the ping request
     @remarks ping requests factor into the mean round trip time as designated by the 
-    roundTripTime field in the SecUdpPeer structure.  SecUdp automatically pings all connected
+    roundTripTime field in the ENetPeer structure.  ENet automatically pings all connected
     peers at regular intervals, however, this function may be called to ensure more
     frequent ping requests.
 */
 void
-secudp_peer_ping (SecUdpPeer * peer)
+enet_peer_ping (ENetPeer * peer)
 {
-    SecUdpProtocol command;
+    ENetProtocol command;
 
-    if (peer -> state != SECUDP_PEER_STATE_CONNECTED)
+    if (peer -> state != ENET_PEER_STATE_CONNECTED)
       return;
 
-    command.header.command = SECUDP_PROTOCOL_COMMAND_PING | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+    command.header.command = ENET_PROTOCOL_COMMAND_PING | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
     command.header.channelID = 0xFF;
    
-    secudp_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
+    enet_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
 }
 
 /** Sets the interval at which pings will be sent to a peer. 
@@ -455,12 +455,12 @@ secudp_peer_ping (SecUdpPeer * peer)
     responsiveness during traffic spikes.
 
     @param peer the peer to adjust
-    @param pingInterval the interval at which to send pings; defaults to SECUDP_PEER_PING_INTERVAL if 0
+    @param pingInterval the interval at which to send pings; defaults to ENET_PEER_PING_INTERVAL if 0
 */
 void
-secudp_peer_ping_interval (SecUdpPeer * peer, secudp_uint32 pingInterval)
+enet_peer_ping_interval (ENetPeer * peer, enet_uint32 pingInterval)
 {
-    peer -> pingInterval = pingInterval ? pingInterval : SECUDP_PEER_PING_INTERVAL;
+    peer -> pingInterval = pingInterval ? pingInterval : ENET_PEER_PING_INTERVAL;
 }
 
 /** Sets the timeout parameters for a peer.
@@ -475,152 +475,152 @@ secudp_peer_ping_interval (SecUdpPeer * peer, secudp_uint32 pingInterval)
     of the current timeout limit value.
     
     @param peer the peer to adjust
-    @param timeoutLimit the timeout limit; defaults to SECUDP_PEER_TIMEOUT_LIMIT if 0
-    @param timeoutMinimum the timeout minimum; defaults to SECUDP_PEER_TIMEOUT_MINIMUM if 0
-    @param timeoutMaximum the timeout maximum; defaults to SECUDP_PEER_TIMEOUT_MAXIMUM if 0
+    @param timeoutLimit the timeout limit; defaults to ENET_PEER_TIMEOUT_LIMIT if 0
+    @param timeoutMinimum the timeout minimum; defaults to ENET_PEER_TIMEOUT_MINIMUM if 0
+    @param timeoutMaximum the timeout maximum; defaults to ENET_PEER_TIMEOUT_MAXIMUM if 0
 */
 
 void
-secudp_peer_timeout (SecUdpPeer * peer, secudp_uint32 timeoutLimit, secudp_uint32 timeoutMinimum, secudp_uint32 timeoutMaximum)
+enet_peer_timeout (ENetPeer * peer, enet_uint32 timeoutLimit, enet_uint32 timeoutMinimum, enet_uint32 timeoutMaximum)
 {
-    peer -> timeoutLimit = timeoutLimit ? timeoutLimit : SECUDP_PEER_TIMEOUT_LIMIT;
-    peer -> timeoutMinimum = timeoutMinimum ? timeoutMinimum : SECUDP_PEER_TIMEOUT_MINIMUM;
-    peer -> timeoutMaximum = timeoutMaximum ? timeoutMaximum : SECUDP_PEER_TIMEOUT_MAXIMUM;
+    peer -> timeoutLimit = timeoutLimit ? timeoutLimit : ENET_PEER_TIMEOUT_LIMIT;
+    peer -> timeoutMinimum = timeoutMinimum ? timeoutMinimum : ENET_PEER_TIMEOUT_MINIMUM;
+    peer -> timeoutMaximum = timeoutMaximum ? timeoutMaximum : ENET_PEER_TIMEOUT_MAXIMUM;
 }
 
 /** Force an immediate disconnection from a peer.
     @param peer peer to disconnect
     @param data data describing the disconnection
-    @remarks No SECUDP_EVENT_DISCONNECT event will be generated. The foreign peer is not
+    @remarks No ENET_EVENT_DISCONNECT event will be generated. The foreign peer is not
     guaranteed to receive the disconnect notification, and is reset immediately upon
     return from this function.
 */
 void
-secudp_peer_disconnect_now (SecUdpPeer * peer, secudp_uint32 data)
+enet_peer_disconnect_now (ENetPeer * peer, enet_uint32 data)
 {
-    SecUdpProtocol command;
+    ENetProtocol command;
 
-    if (peer -> state == SECUDP_PEER_STATE_DISCONNECTED)
+    if (peer -> state == ENET_PEER_STATE_DISCONNECTED)
       return;
 
-    if (peer -> state != SECUDP_PEER_STATE_ZOMBIE &&
-        peer -> state != SECUDP_PEER_STATE_DISCONNECTING)
+    if (peer -> state != ENET_PEER_STATE_ZOMBIE &&
+        peer -> state != ENET_PEER_STATE_DISCONNECTING)
     {
-        secudp_peer_reset_queues (peer);
+        enet_peer_reset_queues (peer);
 
-        command.header.command = SECUDP_PROTOCOL_COMMAND_DISCONNECT | SECUDP_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;
+        command.header.command = ENET_PROTOCOL_COMMAND_DISCONNECT | ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;
         command.header.channelID = 0xFF;
-        command.disconnect.data = SECUDP_HOST_TO_NET_32 (data);
+        command.disconnect.data = ENET_HOST_TO_NET_32 (data);
 
-        secudp_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
+        enet_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
 
-        secudp_host_flush (peer -> host);
+        enet_host_flush (peer -> host);
     }
 
-    secudp_peer_reset (peer);
+    enet_peer_reset (peer);
 }
 
 /** Request a disconnection from a peer.
     @param peer peer to request a disconnection
     @param data data describing the disconnection
-    @remarks An SECUDP_EVENT_DISCONNECT event will be generated by secudp_host_service()
+    @remarks An ENET_EVENT_DISCONNECT event will be generated by enet_host_service()
     once the disconnection is complete.
 */
 void
-secudp_peer_disconnect (SecUdpPeer * peer, secudp_uint32 data)
+enet_peer_disconnect (ENetPeer * peer, enet_uint32 data)
 {
-    SecUdpProtocol command;
+    ENetProtocol command;
 
-    if (peer -> state == SECUDP_PEER_STATE_DISCONNECTING ||
-        peer -> state == SECUDP_PEER_STATE_DISCONNECTED ||
-        peer -> state == SECUDP_PEER_STATE_ACKNOWLEDGING_DISCONNECT ||
-        peer -> state == SECUDP_PEER_STATE_ZOMBIE)
+    if (peer -> state == ENET_PEER_STATE_DISCONNECTING ||
+        peer -> state == ENET_PEER_STATE_DISCONNECTED ||
+        peer -> state == ENET_PEER_STATE_ACKNOWLEDGING_DISCONNECT ||
+        peer -> state == ENET_PEER_STATE_ZOMBIE)
       return;
 
-    secudp_peer_reset_queues (peer);
+    enet_peer_reset_queues (peer);
 
-    command.header.command = SECUDP_PROTOCOL_COMMAND_DISCONNECT;
+    command.header.command = ENET_PROTOCOL_COMMAND_DISCONNECT;
     command.header.channelID = 0xFF;
-    command.disconnect.data = SECUDP_HOST_TO_NET_32 (data);
+    command.disconnect.data = ENET_HOST_TO_NET_32 (data);
 
-    if (peer -> state == SECUDP_PEER_STATE_CONNECTED || peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
-      command.header.command |= SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+    if (peer -> state == ENET_PEER_STATE_CONNECTED || peer -> state == ENET_PEER_STATE_DISCONNECT_LATER)
+      command.header.command |= ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
     else
-      command.header.command |= SECUDP_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;      
+      command.header.command |= ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;      
     
-    secudp_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
+    enet_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
 
-    if (peer -> state == SECUDP_PEER_STATE_CONNECTED || peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
+    if (peer -> state == ENET_PEER_STATE_CONNECTED || peer -> state == ENET_PEER_STATE_DISCONNECT_LATER)
     {
-        secudp_peer_on_disconnect (peer);
+        enet_peer_on_disconnect (peer);
 
-        peer -> state = SECUDP_PEER_STATE_DISCONNECTING;
+        peer -> state = ENET_PEER_STATE_DISCONNECTING;
     }
     else
     {
-        secudp_host_flush (peer -> host);
-        secudp_peer_reset (peer);
+        enet_host_flush (peer -> host);
+        enet_peer_reset (peer);
     }
 }
 
 /** Request a disconnection from a peer, but only after all queued outgoing packets are sent.
     @param peer peer to request a disconnection
     @param data data describing the disconnection
-    @remarks An SECUDP_EVENT_DISCONNECT event will be generated by secudp_host_service()
+    @remarks An ENET_EVENT_DISCONNECT event will be generated by enet_host_service()
     once the disconnection is complete.
 */
 void
-secudp_peer_disconnect_later (SecUdpPeer * peer, secudp_uint32 data)
+enet_peer_disconnect_later (ENetPeer * peer, enet_uint32 data)
 {   
-    if ((peer -> state == SECUDP_PEER_STATE_CONNECTED || peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER) && 
-        ! (secudp_list_empty (& peer -> outgoingCommands) &&
-           secudp_list_empty (& peer -> sentReliableCommands)))
+    if ((peer -> state == ENET_PEER_STATE_CONNECTED || peer -> state == ENET_PEER_STATE_DISCONNECT_LATER) && 
+        ! (enet_list_empty (& peer -> outgoingCommands) &&
+           enet_list_empty (& peer -> sentReliableCommands)))
     {
-        peer -> state = SECUDP_PEER_STATE_DISCONNECT_LATER;
+        peer -> state = ENET_PEER_STATE_DISCONNECT_LATER;
         peer -> eventData = data;
     }
     else
-      secudp_peer_disconnect (peer, data);
+      enet_peer_disconnect (peer, data);
 }
 
-SecUdpAcknowledgement *
-secudp_peer_queue_acknowledgement (SecUdpPeer * peer, const SecUdpProtocol * command, secudp_uint16 sentTime)
+ENetAcknowledgement *
+enet_peer_queue_acknowledgement (ENetPeer * peer, const ENetProtocol * command, enet_uint16 sentTime)
 {
-    SecUdpAcknowledgement * acknowledgement;
+    ENetAcknowledgement * acknowledgement;
 
     if (command -> header.channelID < peer -> channelCount)
     {
-        SecUdpChannel * channel = & peer -> channels [command -> header.channelID];
-        secudp_uint16 reliableWindow = command -> header.reliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE,
-                    currentWindow = channel -> incomingReliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE;
+        ENetChannel * channel = & peer -> channels [command -> header.channelID];
+        enet_uint16 reliableWindow = command -> header.reliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE,
+                    currentWindow = channel -> incomingReliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE;
 
         if (command -> header.reliableSequenceNumber < channel -> incomingReliableSequenceNumber)
-           reliableWindow += SECUDP_PEER_RELIABLE_WINDOWS;
+           reliableWindow += ENET_PEER_RELIABLE_WINDOWS;
 
-        if (reliableWindow >= currentWindow + SECUDP_PEER_FREE_RELIABLE_WINDOWS - 1 && reliableWindow <= currentWindow + SECUDP_PEER_FREE_RELIABLE_WINDOWS)
+        if (reliableWindow >= currentWindow + ENET_PEER_FREE_RELIABLE_WINDOWS - 1 && reliableWindow <= currentWindow + ENET_PEER_FREE_RELIABLE_WINDOWS)
           return NULL;
     }
 
-    acknowledgement = (SecUdpAcknowledgement *) secudp_malloc (sizeof (SecUdpAcknowledgement));
+    acknowledgement = (ENetAcknowledgement *) enet_malloc (sizeof (ENetAcknowledgement));
     if (acknowledgement == NULL)
       return NULL;
 
-    peer -> outgoingDataTotal += sizeof (SecUdpProtocolAcknowledge);
+    peer -> outgoingDataTotal += sizeof (ENetProtocolAcknowledge);
 
     acknowledgement -> sentTime = sentTime;
     acknowledgement -> command = * command;
     
-    secudp_list_insert (secudp_list_end (& peer -> acknowledgements), acknowledgement);
+    enet_list_insert (enet_list_end (& peer -> acknowledgements), acknowledgement);
     
     return acknowledgement;
 }
 
 void
-secudp_peer_setup_outgoing_command (SecUdpPeer * peer, SecUdpOutgoingCommand * outgoingCommand)
+enet_peer_setup_outgoing_command (ENetPeer * peer, ENetOutgoingCommand * outgoingCommand)
 {
-    SecUdpChannel * channel = & peer -> channels [outgoingCommand -> command.header.channelID];
+    ENetChannel * channel = & peer -> channels [outgoingCommand -> command.header.channelID];
     
-    peer -> outgoingDataTotal += secudp_protocol_command_size (outgoingCommand -> command.header.command) + outgoingCommand -> fragmentLength;
+    peer -> outgoingDataTotal += enet_protocol_command_size (outgoingCommand -> command.header.command) + outgoingCommand -> fragmentLength;
 
     if (outgoingCommand -> command.header.channelID == 0xFF)
     {
@@ -630,7 +630,7 @@ secudp_peer_setup_outgoing_command (SecUdpPeer * peer, SecUdpOutgoingCommand * o
        outgoingCommand -> unreliableSequenceNumber = 0;
     }
     else
-    if (outgoingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)
+    if (outgoingCommand -> command.header.command & ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)
     {
        ++ channel -> outgoingReliableSequenceNumber;
        channel -> outgoingUnreliableSequenceNumber = 0;
@@ -639,7 +639,7 @@ secudp_peer_setup_outgoing_command (SecUdpPeer * peer, SecUdpOutgoingCommand * o
        outgoingCommand -> unreliableSequenceNumber = 0;
     }
     else
-    if (outgoingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
+    if (outgoingCommand -> command.header.command & ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
     {
        ++ peer -> outgoingUnsequencedGroup;
 
@@ -659,29 +659,29 @@ secudp_peer_setup_outgoing_command (SecUdpPeer * peer, SecUdpOutgoingCommand * o
     outgoingCommand -> sentTime = 0;
     outgoingCommand -> roundTripTimeout = 0;
     outgoingCommand -> roundTripTimeoutLimit = 0;
-    outgoingCommand -> command.header.reliableSequenceNumber = SECUDP_HOST_TO_NET_16 (outgoingCommand -> reliableSequenceNumber);
+    outgoingCommand -> command.header.reliableSequenceNumber = ENET_HOST_TO_NET_16 (outgoingCommand -> reliableSequenceNumber);
 
-    switch (outgoingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK)
+    switch (outgoingCommand -> command.header.command & ENET_PROTOCOL_COMMAND_MASK)
     {
-    case SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE:
-        outgoingCommand -> command.sendUnreliable.unreliableSequenceNumber = SECUDP_HOST_TO_NET_16 (outgoingCommand -> unreliableSequenceNumber);
+    case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
+        outgoingCommand -> command.sendUnreliable.unreliableSequenceNumber = ENET_HOST_TO_NET_16 (outgoingCommand -> unreliableSequenceNumber);
         break;
 
-    case SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
-        outgoingCommand -> command.sendUnsequenced.unsequencedGroup = SECUDP_HOST_TO_NET_16 (peer -> outgoingUnsequencedGroup);
+    case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
+        outgoingCommand -> command.sendUnsequenced.unsequencedGroup = ENET_HOST_TO_NET_16 (peer -> outgoingUnsequencedGroup);
         break;
     
     default:
         break;
     }
 
-    secudp_list_insert (secudp_list_end (& peer -> outgoingCommands), outgoingCommand);
+    enet_list_insert (enet_list_end (& peer -> outgoingCommands), outgoingCommand);
 }
 
-SecUdpOutgoingCommand *
-secudp_peer_queue_outgoing_command (SecUdpPeer * peer, const SecUdpProtocol * command, SecUdpPacket * packet, secudp_uint32 offset, secudp_uint16 length)
+ENetOutgoingCommand *
+enet_peer_queue_outgoing_command (ENetPeer * peer, const ENetProtocol * command, ENetPacket * packet, enet_uint32 offset, enet_uint16 length)
 {
-    SecUdpOutgoingCommand * outgoingCommand = (SecUdpOutgoingCommand *) secudp_malloc (sizeof (SecUdpOutgoingCommand));
+    ENetOutgoingCommand * outgoingCommand = (ENetOutgoingCommand *) enet_malloc (sizeof (ENetOutgoingCommand));
     if (outgoingCommand == NULL)
       return NULL;
 
@@ -692,23 +692,23 @@ secudp_peer_queue_outgoing_command (SecUdpPeer * peer, const SecUdpProtocol * co
     if (packet != NULL)
       ++ packet -> referenceCount;
 
-    secudp_peer_setup_outgoing_command (peer, outgoingCommand);
+    enet_peer_setup_outgoing_command (peer, outgoingCommand);
 
     return outgoingCommand;
 }
 
 void
-secudp_peer_dispatch_incoming_unreliable_commands (SecUdpPeer * peer, SecUdpChannel * channel, SecUdpIncomingCommand * queuedCommand)
+enet_peer_dispatch_incoming_unreliable_commands (ENetPeer * peer, ENetChannel * channel, ENetIncomingCommand * queuedCommand)
 {
-    SecUdpListIterator droppedCommand, startCommand, currentCommand;
+    ENetListIterator droppedCommand, startCommand, currentCommand;
 
-    for (droppedCommand = startCommand = currentCommand = secudp_list_begin (& channel -> incomingUnreliableCommands);
-         currentCommand != secudp_list_end (& channel -> incomingUnreliableCommands);
-         currentCommand = secudp_list_next (currentCommand))
+    for (droppedCommand = startCommand = currentCommand = enet_list_begin (& channel -> incomingUnreliableCommands);
+         currentCommand != enet_list_end (& channel -> incomingUnreliableCommands);
+         currentCommand = enet_list_next (currentCommand))
     {
-       SecUdpIncomingCommand * incomingCommand = (SecUdpIncomingCommand *) currentCommand;
+       ENetIncomingCommand * incomingCommand = (ENetIncomingCommand *) currentCommand;
 
-       if ((incomingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK) == SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
+       if ((incomingCommand -> command.header.command & ENET_PROTOCOL_COMMAND_MASK) == ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
          continue;
 
        if (incomingCommand -> reliableSequenceNumber == channel -> incomingReliableSequenceNumber)
@@ -721,78 +721,78 @@ secudp_peer_dispatch_incoming_unreliable_commands (SecUdpPeer * peer, SecUdpChan
 
           if (startCommand != currentCommand)
           {
-             secudp_list_move (secudp_list_end (& peer -> dispatchedCommands), startCommand, secudp_list_previous (currentCommand));
+             enet_list_move (enet_list_end (& peer -> dispatchedCommands), startCommand, enet_list_previous (currentCommand));
 
-             if (! (peer -> flags & SECUDP_PEER_FLAG_NEEDS_DISPATCH))
+             if (! (peer -> flags & ENET_PEER_FLAG_NEEDS_DISPATCH))
              {
-                secudp_list_insert (secudp_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
+                enet_list_insert (enet_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
 
-                peer -> flags |= SECUDP_PEER_FLAG_NEEDS_DISPATCH;
+                peer -> flags |= ENET_PEER_FLAG_NEEDS_DISPATCH;
              }
 
              droppedCommand = currentCommand;
           }
           else
           if (droppedCommand != currentCommand)
-            droppedCommand = secudp_list_previous (currentCommand);
+            droppedCommand = enet_list_previous (currentCommand);
        }
        else 
        {
-          secudp_uint16 reliableWindow = incomingCommand -> reliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE,
-                      currentWindow = channel -> incomingReliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE;
+          enet_uint16 reliableWindow = incomingCommand -> reliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE,
+                      currentWindow = channel -> incomingReliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE;
           if (incomingCommand -> reliableSequenceNumber < channel -> incomingReliableSequenceNumber)
-            reliableWindow += SECUDP_PEER_RELIABLE_WINDOWS;
-          if (reliableWindow >= currentWindow && reliableWindow < currentWindow + SECUDP_PEER_FREE_RELIABLE_WINDOWS - 1)
+            reliableWindow += ENET_PEER_RELIABLE_WINDOWS;
+          if (reliableWindow >= currentWindow && reliableWindow < currentWindow + ENET_PEER_FREE_RELIABLE_WINDOWS - 1)
             break;
 
-          droppedCommand = secudp_list_next (currentCommand);
+          droppedCommand = enet_list_next (currentCommand);
 
           if (startCommand != currentCommand)
           {
-             secudp_list_move (secudp_list_end (& peer -> dispatchedCommands), startCommand, secudp_list_previous (currentCommand));
+             enet_list_move (enet_list_end (& peer -> dispatchedCommands), startCommand, enet_list_previous (currentCommand));
 
-             if (! (peer -> flags & SECUDP_PEER_FLAG_NEEDS_DISPATCH))
+             if (! (peer -> flags & ENET_PEER_FLAG_NEEDS_DISPATCH))
              {
-                secudp_list_insert (secudp_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
+                enet_list_insert (enet_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
 
-                peer -> flags |= SECUDP_PEER_FLAG_NEEDS_DISPATCH;
+                peer -> flags |= ENET_PEER_FLAG_NEEDS_DISPATCH;
              }
           }
        }
           
-       startCommand = secudp_list_next (currentCommand);
+       startCommand = enet_list_next (currentCommand);
     }
 
     if (startCommand != currentCommand)
     {
-       secudp_list_move (secudp_list_end (& peer -> dispatchedCommands), startCommand, secudp_list_previous (currentCommand));
+       enet_list_move (enet_list_end (& peer -> dispatchedCommands), startCommand, enet_list_previous (currentCommand));
 
-       if (! (peer -> flags & SECUDP_PEER_FLAG_NEEDS_DISPATCH))
+       if (! (peer -> flags & ENET_PEER_FLAG_NEEDS_DISPATCH))
        {
-           secudp_list_insert (secudp_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
+           enet_list_insert (enet_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
 
-           peer -> flags |= SECUDP_PEER_FLAG_NEEDS_DISPATCH;
+           peer -> flags |= ENET_PEER_FLAG_NEEDS_DISPATCH;
        }
 
        droppedCommand = currentCommand;
     }
 
-    secudp_peer_remove_incoming_commands (& channel -> incomingUnreliableCommands, secudp_list_begin (& channel -> incomingUnreliableCommands), droppedCommand, queuedCommand);
+    enet_peer_remove_incoming_commands (& channel -> incomingUnreliableCommands, enet_list_begin (& channel -> incomingUnreliableCommands), droppedCommand, queuedCommand);
 }
 
 void
-secudp_peer_dispatch_incoming_reliable_commands (SecUdpPeer * peer, SecUdpChannel * channel, SecUdpIncomingCommand * queuedCommand)
+enet_peer_dispatch_incoming_reliable_commands (ENetPeer * peer, ENetChannel * channel, ENetIncomingCommand * queuedCommand)
 {
-    SecUdpListIterator currentCommand;
+    ENetListIterator currentCommand;
 
-    for (currentCommand = secudp_list_begin (& channel -> incomingReliableCommands);
-         currentCommand != secudp_list_end (& channel -> incomingReliableCommands);
-         currentCommand = secudp_list_next (currentCommand))
+    for (currentCommand = enet_list_begin (& channel -> incomingReliableCommands);
+         currentCommand != enet_list_end (& channel -> incomingReliableCommands);
+         currentCommand = enet_list_next (currentCommand))
     {
-       SecUdpIncomingCommand * incomingCommand = (SecUdpIncomingCommand *) currentCommand;
+       ENetIncomingCommand * incomingCommand = (ENetIncomingCommand *) currentCommand;
          
        if (incomingCommand -> fragmentsRemaining > 0 ||
-           incomingCommand -> reliableSequenceNumber != (secudp_uint16) (channel -> incomingReliableSequenceNumber + 1))
+           incomingCommand -> reliableSequenceNumber != (enet_uint16) (channel -> incomingReliableSequenceNumber + 1))
          break;
 
        channel -> incomingReliableSequenceNumber = incomingCommand -> reliableSequenceNumber;
@@ -801,64 +801,64 @@ secudp_peer_dispatch_incoming_reliable_commands (SecUdpPeer * peer, SecUdpChanne
          channel -> incomingReliableSequenceNumber += incomingCommand -> fragmentCount - 1;
     } 
 
-    if (currentCommand == secudp_list_begin (& channel -> incomingReliableCommands))
+    if (currentCommand == enet_list_begin (& channel -> incomingReliableCommands))
       return;
 
     channel -> incomingUnreliableSequenceNumber = 0;
 
-    secudp_list_move (secudp_list_end (& peer -> dispatchedCommands), secudp_list_begin (& channel -> incomingReliableCommands), secudp_list_previous (currentCommand));
+    enet_list_move (enet_list_end (& peer -> dispatchedCommands), enet_list_begin (& channel -> incomingReliableCommands), enet_list_previous (currentCommand));
 
-    if (! (peer -> flags & SECUDP_PEER_FLAG_NEEDS_DISPATCH))
+    if (! (peer -> flags & ENET_PEER_FLAG_NEEDS_DISPATCH))
     {
-       secudp_list_insert (secudp_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
+       enet_list_insert (enet_list_end (& peer -> host -> dispatchQueue), & peer -> dispatchList);
 
-       peer -> flags |= SECUDP_PEER_FLAG_NEEDS_DISPATCH;
+       peer -> flags |= ENET_PEER_FLAG_NEEDS_DISPATCH;
     }
 
-    if (! secudp_list_empty (& channel -> incomingUnreliableCommands))
-       secudp_peer_dispatch_incoming_unreliable_commands (peer, channel, queuedCommand);
+    if (! enet_list_empty (& channel -> incomingUnreliableCommands))
+       enet_peer_dispatch_incoming_unreliable_commands (peer, channel, queuedCommand);
 }
 
-SecUdpIncomingCommand *
-secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * command, const void * data, size_t dataLength, secudp_uint32 flags, secudp_uint32 fragmentCount)
+ENetIncomingCommand *
+enet_peer_queue_incoming_command (ENetPeer * peer, const ENetProtocol * command, const void * data, size_t dataLength, enet_uint32 flags, enet_uint32 fragmentCount)
 {
-    static SecUdpIncomingCommand dummyCommand;
+    static ENetIncomingCommand dummyCommand;
 
-    SecUdpChannel * channel = & peer -> channels [command -> header.channelID];
-    secudp_uint32 unreliableSequenceNumber = 0, reliableSequenceNumber = 0;
-    secudp_uint16 reliableWindow, currentWindow;
-    SecUdpIncomingCommand * incomingCommand;
-    SecUdpListIterator currentCommand;
-    SecUdpPacket * packet = NULL;
+    ENetChannel * channel = & peer -> channels [command -> header.channelID];
+    enet_uint32 unreliableSequenceNumber = 0, reliableSequenceNumber = 0;
+    enet_uint16 reliableWindow, currentWindow;
+    ENetIncomingCommand * incomingCommand;
+    ENetListIterator currentCommand;
+    ENetPacket * packet = NULL;
 
-    if (peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
+    if (peer -> state == ENET_PEER_STATE_DISCONNECT_LATER)
       goto discardCommand;
 
-    if ((command -> header.command & SECUDP_PROTOCOL_COMMAND_MASK) != SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
+    if ((command -> header.command & ENET_PROTOCOL_COMMAND_MASK) != ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
     {
         reliableSequenceNumber = command -> header.reliableSequenceNumber;
-        reliableWindow = reliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE;
-        currentWindow = channel -> incomingReliableSequenceNumber / SECUDP_PEER_RELIABLE_WINDOW_SIZE;
+        reliableWindow = reliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE;
+        currentWindow = channel -> incomingReliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE;
 
         if (reliableSequenceNumber < channel -> incomingReliableSequenceNumber)
-           reliableWindow += SECUDP_PEER_RELIABLE_WINDOWS;
+           reliableWindow += ENET_PEER_RELIABLE_WINDOWS;
 
-        if (reliableWindow < currentWindow || reliableWindow >= currentWindow + SECUDP_PEER_FREE_RELIABLE_WINDOWS - 1)
+        if (reliableWindow < currentWindow || reliableWindow >= currentWindow + ENET_PEER_FREE_RELIABLE_WINDOWS - 1)
           goto discardCommand;
     }
                     
-    switch (command -> header.command & SECUDP_PROTOCOL_COMMAND_MASK)
+    switch (command -> header.command & ENET_PROTOCOL_COMMAND_MASK)
     {
-    case SECUDP_PROTOCOL_COMMAND_SEND_FRAGMENT:
-    case SECUDP_PROTOCOL_COMMAND_SEND_RELIABLE:
+    case ENET_PROTOCOL_COMMAND_SEND_FRAGMENT:
+    case ENET_PROTOCOL_COMMAND_SEND_RELIABLE:
        if (reliableSequenceNumber == channel -> incomingReliableSequenceNumber)
          goto discardCommand;
        
-       for (currentCommand = secudp_list_previous (secudp_list_end (& channel -> incomingReliableCommands));
-            currentCommand != secudp_list_end (& channel -> incomingReliableCommands);
-            currentCommand = secudp_list_previous (currentCommand))
+       for (currentCommand = enet_list_previous (enet_list_end (& channel -> incomingReliableCommands));
+            currentCommand != enet_list_end (& channel -> incomingReliableCommands);
+            currentCommand = enet_list_previous (currentCommand))
        {
-          incomingCommand = (SecUdpIncomingCommand *) currentCommand;
+          incomingCommand = (ENetIncomingCommand *) currentCommand;
 
           if (reliableSequenceNumber >= channel -> incomingReliableSequenceNumber)
           {
@@ -879,21 +879,21 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
        }
        break;
 
-    case SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE:
-    case SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT:
-       unreliableSequenceNumber = SECUDP_NET_TO_HOST_16 (command -> sendUnreliable.unreliableSequenceNumber);
+    case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
+    case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT:
+       unreliableSequenceNumber = ENET_NET_TO_HOST_16 (command -> sendUnreliable.unreliableSequenceNumber);
 
        if (reliableSequenceNumber == channel -> incomingReliableSequenceNumber && 
            unreliableSequenceNumber <= channel -> incomingUnreliableSequenceNumber)
          goto discardCommand;
 
-       for (currentCommand = secudp_list_previous (secudp_list_end (& channel -> incomingUnreliableCommands));
-            currentCommand != secudp_list_end (& channel -> incomingUnreliableCommands);
-            currentCommand = secudp_list_previous (currentCommand))
+       for (currentCommand = enet_list_previous (enet_list_end (& channel -> incomingUnreliableCommands));
+            currentCommand != enet_list_end (& channel -> incomingUnreliableCommands);
+            currentCommand = enet_list_previous (currentCommand))
        {
-          incomingCommand = (SecUdpIncomingCommand *) currentCommand;
+          incomingCommand = (ENetIncomingCommand *) currentCommand;
 
-          if ((command -> header.command & SECUDP_PROTOCOL_COMMAND_MASK) == SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
+          if ((command -> header.command & ENET_PROTOCOL_COMMAND_MASK) == ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
             continue;
 
           if (reliableSequenceNumber >= channel -> incomingReliableSequenceNumber)
@@ -921,8 +921,8 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
        }
        break;
 
-    case SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
-       currentCommand = secudp_list_end (& channel -> incomingUnreliableCommands);
+    case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
+       currentCommand = enet_list_end (& channel -> incomingUnreliableCommands);
        break;
 
     default:
@@ -932,11 +932,11 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
     if (peer -> totalWaitingData >= peer -> host -> maximumWaitingData)
       goto notifyError;
 
-    packet = secudp_packet_create (data, dataLength, flags);
+    packet = enet_packet_create (data, dataLength, flags);
     if (packet == NULL)
       goto notifyError;
 
-    incomingCommand = (SecUdpIncomingCommand *) secudp_malloc (sizeof (SecUdpIncomingCommand));
+    incomingCommand = (ENetIncomingCommand *) enet_malloc (sizeof (ENetIncomingCommand));
     if (incomingCommand == NULL)
       goto notifyError;
 
@@ -950,15 +950,15 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
     
     if (fragmentCount > 0)
     { 
-       if (fragmentCount <= SECUDP_PROTOCOL_MAXIMUM_FRAGMENT_COUNT)
-         incomingCommand -> fragments = (secudp_uint32 *) secudp_malloc ((fragmentCount + 31) / 32 * sizeof (secudp_uint32));
+       if (fragmentCount <= ENET_PROTOCOL_MAXIMUM_FRAGMENT_COUNT)
+         incomingCommand -> fragments = (enet_uint32 *) enet_malloc ((fragmentCount + 31) / 32 * sizeof (enet_uint32));
        if (incomingCommand -> fragments == NULL)
        {
-          secudp_free (incomingCommand);
+          enet_free (incomingCommand);
 
           goto notifyError;
        }
-       memset (incomingCommand -> fragments, 0, (fragmentCount + 31) / 32 * sizeof (secudp_uint32));
+       memset (incomingCommand -> fragments, 0, (fragmentCount + 31) / 32 * sizeof (enet_uint32));
     }
 
     if (packet != NULL)
@@ -968,17 +968,17 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
        peer -> totalWaitingData += packet -> dataLength;
     }
 
-    secudp_list_insert (secudp_list_next (currentCommand), incomingCommand);
+    enet_list_insert (enet_list_next (currentCommand), incomingCommand);
 
-    switch (command -> header.command & SECUDP_PROTOCOL_COMMAND_MASK)
+    switch (command -> header.command & ENET_PROTOCOL_COMMAND_MASK)
     {
-    case SECUDP_PROTOCOL_COMMAND_SEND_FRAGMENT:
-    case SECUDP_PROTOCOL_COMMAND_SEND_RELIABLE:
-       secudp_peer_dispatch_incoming_reliable_commands (peer, channel, incomingCommand);
+    case ENET_PROTOCOL_COMMAND_SEND_FRAGMENT:
+    case ENET_PROTOCOL_COMMAND_SEND_RELIABLE:
+       enet_peer_dispatch_incoming_reliable_commands (peer, channel, incomingCommand);
        break;
 
     default:
-       secudp_peer_dispatch_incoming_unreliable_commands (peer, channel, incomingCommand);
+       enet_peer_dispatch_incoming_unreliable_commands (peer, channel, incomingCommand);
        break;
     }
 
@@ -989,13 +989,13 @@ discardCommand:
       goto notifyError;
 
     if (packet != NULL && packet -> referenceCount == 0)
-      secudp_packet_destroy (packet);
+      enet_packet_destroy (packet);
 
     return & dummyCommand;
 
 notifyError:
     if (packet != NULL && packet -> referenceCount == 0)
-      secudp_packet_destroy (packet);
+      enet_packet_destroy (packet);
 
     return NULL;
 }

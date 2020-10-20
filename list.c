@@ -1,26 +1,26 @@
 /** 
  @file list.c
- @brief SecUdp linked list functions
+ @brief ENet linked list functions
 */
-#define SECUDP_BUILDING_LIB 1
-#include "SecUdp/SecUdp.h"
+#define ENET_BUILDING_LIB 1
+#include "enet/enet.h"
 
 /** 
-    @defgroup list SecUdp linked list utility functions
+    @defgroup list ENet linked list utility functions
     @ingroup private
     @{
 */
 void
-secudp_list_clear (SecUdpList * list)
+enet_list_clear (ENetList * list)
 {
    list -> sentinel.next = & list -> sentinel;
    list -> sentinel.previous = & list -> sentinel;
 }
 
-SecUdpListIterator
-secudp_list_insert (SecUdpListIterator position, void * data)
+ENetListIterator
+enet_list_insert (ENetListIterator position, void * data)
 {
-   SecUdpListIterator result = (SecUdpListIterator) data;
+   ENetListIterator result = (ENetListIterator) data;
 
    result -> previous = position -> previous;
    result -> next = position;
@@ -32,7 +32,7 @@ secudp_list_insert (SecUdpListIterator position, void * data)
 }
 
 void *
-secudp_list_remove (SecUdpListIterator position)
+enet_list_remove (ENetListIterator position)
 {
    position -> previous -> next = position -> next;
    position -> next -> previous = position -> previous;
@@ -40,11 +40,11 @@ secudp_list_remove (SecUdpListIterator position)
    return position;
 }
 
-SecUdpListIterator
-secudp_list_move (SecUdpListIterator position, void * dataFirst, void * dataLast)
+ENetListIterator
+enet_list_move (ENetListIterator position, void * dataFirst, void * dataLast)
 {
-   SecUdpListIterator first = (SecUdpListIterator) dataFirst,
-                    last = (SecUdpListIterator) dataLast;
+   ENetListIterator first = (ENetListIterator) dataFirst,
+                    last = (ENetListIterator) dataLast;
 
    first -> previous -> next = last -> next;
    last -> next -> previous = first -> previous;
@@ -59,14 +59,14 @@ secudp_list_move (SecUdpListIterator position, void * dataFirst, void * dataLast
 }
 
 size_t
-secudp_list_size (SecUdpList * list)
+enet_list_size (ENetList * list)
 {
    size_t size = 0;
-   SecUdpListIterator position;
+   ENetListIterator position;
 
-   for (position = secudp_list_begin (list);
-        position != secudp_list_end (list);
-        position = secudp_list_next (position))
+   for (position = enet_list_begin (list);
+        position != enet_list_end (list);
+        position = enet_list_next (position))
      ++ size;
    
    return size;

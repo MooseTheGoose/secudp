@@ -1,16 +1,16 @@
 /** 
  @file callbacks.c
- @brief SecUdp callback functions
+ @brief ENet callback functions
 */
-#define SECUDP_BUILDING_LIB 1
-#include "SecUdp/SecUdp.h"
+#define ENET_BUILDING_LIB 1
+#include "enet/enet.h"
 
-static SecUdpCallbacks callbacks = { malloc, free, abort };
+static ENetCallbacks callbacks = { malloc, free, abort };
 
 int
-secudp_initialize_with_callbacks (SecUdpVersion version, const SecUdpCallbacks * inits)
+enet_initialize_with_callbacks (ENetVersion version, const ENetCallbacks * inits)
 {
-   if (version < SECUDP_VERSION_CREATE (1, 3, 0))
+   if (version < ENET_VERSION_CREATE (1, 3, 0))
      return -1;
 
    if (inits -> malloc != NULL || inits -> free != NULL)
@@ -25,17 +25,17 @@ secudp_initialize_with_callbacks (SecUdpVersion version, const SecUdpCallbacks *
    if (inits -> no_memory != NULL)
      callbacks.no_memory = inits -> no_memory;
 
-   return secudp_initialize ();
+   return enet_initialize ();
 }
 
-SecUdpVersion
-secudp_linked_version (void)
+ENetVersion
+enet_linked_version (void)
 {
-    return SECUDP_VERSION;
+    return ENET_VERSION;
 }
            
 void *
-secudp_malloc (size_t size)
+enet_malloc (size_t size)
 {
    void * memory = callbacks.malloc (size);
 
@@ -46,7 +46,7 @@ secudp_malloc (size_t size)
 }
 
 void
-secudp_free (void * memory)
+enet_free (void * memory)
 {
    callbacks.free (memory);
 }
