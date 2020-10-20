@@ -1,5 +1,5 @@
-AC_INIT([libenet], [1.3.16])
-AC_CONFIG_SRCDIR([include/enet/enet.h])
+AC_INIT([secudp], [1.0.0])
+AC_CONFIG_SRCDIR([include/secudp/secudp.h])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -24,5 +24,5 @@ AC_CHECK_TYPE(socklen_t, [AC_DEFINE(HAS_SOCKLEN_T)], ,
 )
 
 AC_CONFIG_FILES([Makefile
-	libenet.pc])
+	secudp.pc])
 AC_OUTPUT

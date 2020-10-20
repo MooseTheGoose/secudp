@@ -1,12 +1,12 @@
 /** 
  @file host.c
- @brief ENet host management functions
+ @brief SecUdp host management functions
 */
-#define ENET_BUILDING_LIB 1
+#define SECUDP_BUILDING_LIB 1
 #include <string.h>
-#include "enet/enet.h"
+#include "secudp/secudp.h"
 
-/** @defgroup host ENet host functions
+/** @defgroup host SecUdp host functions
     @{
 */
 
@@ -14,80 +14,80 @@
 
     @param address   the address at which other peers may connect to this host.  If NULL, then no peers may connect to the host.
     @param peerCount the maximum number of peers that should be allocated for the host.
-    @param channelLimit the maximum number of channels allowed; if 0, then this is equivalent to ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT
-    @param incomingBandwidth downstream bandwidth of the host in bytes/second; if 0, ENet will assume unlimited bandwidth.
-    @param outgoingBandwidth upstream bandwidth of the host in bytes/second; if 0, ENet will assume unlimited bandwidth.
+    @param channelLimit the maximum number of channels allowed; if 0, then this is equivalent to SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT
+    @param incomingBandwidth downstream bandwidth of the host in bytes/second; if 0, SecUdp will assume unlimited bandwidth.
+    @param outgoingBandwidth upstream bandwidth of the host in bytes/second; if 0, SecUdp will assume unlimited bandwidth.
 
     @returns the host on success and NULL on failure
 
-    @remarks ENet will strategically drop packets on specific sides of a connection between hosts
+    @remarks SecUdp will strategically drop packets on specific sides of a connection between hosts
     to ensure the host's bandwidth is not overwhelmed.  The bandwidth parameters also determine
     the window size of a connection which limits the amount of reliable packets that may be in transit
     at any given time.
 */
-ENetHost *
-enet_host_create (const ENetAddress * address, size_t peerCount, size_t channelLimit, enet_uint32 incomingBandwidth, enet_uint32 outgoingBandwidth)
+SecUdpHost *
+secudp_host_create (const SecUdpAddress * address, size_t peerCount, size_t channelLimit, secudp_uint32 incomingBandwidth, secudp_uint32 outgoingBandwidth)
 {
-    ENetHost * host;
-    ENetPeer * currentPeer;
+    SecUdpHost * host;
+    SecUdpPeer * currentPeer;
 
-    if (peerCount > ENET_PROTOCOL_MAXIMUM_PEER_ID)
+    if (peerCount > SECUDP_PROTOCOL_MAXIMUM_PEER_ID)
       return NULL;
 
-    host = (ENetHost *) enet_malloc (sizeof (ENetHost));
+    host = (SecUdpHost *) secudp_malloc (sizeof (SecUdpHost));
     if (host == NULL)
       return NULL;
-    memset (host, 0, sizeof (ENetHost));
+    memset (host, 0, sizeof (SecUdpHost));
 
-    host -> peers = (ENetPeer *) enet_malloc (peerCount * sizeof (ENetPeer));
+    host -> peers = (SecUdpPeer *) secudp_malloc (peerCount * sizeof (SecUdpPeer));
     if (host -> peers == NULL)
     {
-       enet_free (host);
+       secudp_free (host);
 
        return NULL;
     }
-    memset (host -> peers, 0, peerCount * sizeof (ENetPeer));
+    memset (host -> peers, 0, peerCount * sizeof (SecUdpPeer));
 
-    host -> socket = enet_socket_create (ENET_SOCKET_TYPE_DATAGRAM);
-    if (host -> socket == ENET_SOCKET_NULL || (address != NULL && enet_socket_bind (host -> socket, address) < 0))
+    host -> socket = secudp_socket_create (SECUDP_SOCKET_TYPE_DATAGRAM);
+    if (host -> socket == SECUDP_SOCKET_NULL || (address != NULL && secudp_socket_bind (host -> socket, address) < 0))
     {
-       if (host -> socket != ENET_SOCKET_NULL)
-         enet_socket_destroy (host -> socket);
+       if (host -> socket != SECUDP_SOCKET_NULL)
+         secudp_socket_destroy (host -> socket);
 
-       enet_free (host -> peers);
-       enet_free (host);
+       secudp_free (host -> peers);
+       secudp_free (host);
 
        return NULL;
     }
 
-    enet_socket_set_option (host -> socket, ENET_SOCKOPT_NONBLOCK, 1);
-    enet_socket_set_option (host -> socket, ENET_SOCKOPT_BROADCAST, 1);
-    enet_socket_set_option (host -> socket, ENET_SOCKOPT_RCVBUF, ENET_HOST_RECEIVE_BUFFER_SIZE);
-    enet_socket_set_option (host -> socket, ENET_SOCKOPT_SNDBUF, ENET_HOST_SEND_BUFFER_SIZE);
+    secudp_socket_set_option (host -> socket, SECUDP_SOCKOPT_NONBLOCK, 1);
+    secudp_socket_set_option (host -> socket, SECUDP_SOCKOPT_BROADCAST, 1);
+    secudp_socket_set_option (host -> socket, SECUDP_SOCKOPT_RCVBUF, SECUDP_HOST_RECEIVE_BUFFER_SIZE);
+    secudp_socket_set_option (host -> socket, SECUDP_SOCKOPT_SNDBUF, SECUDP_HOST_SEND_BUFFER_SIZE);
 
-    if (address != NULL && enet_socket_get_address (host -> socket, & host -> address) < 0)   
+    if (address != NULL && secudp_socket_get_address (host -> socket, & host -> address) < 0)   
       host -> address = * address;
 
-    if (! channelLimit || channelLimit > ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
-      channelLimit = ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
+    if (! channelLimit || channelLimit > SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
+      channelLimit = SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
     else
-    if (channelLimit < ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT)
-      channelLimit = ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT;
+    if (channelLimit < SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT)
+      channelLimit = SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT;
 
-    host -> randomSeed = (enet_uint32) (size_t) host;
-    host -> randomSeed += enet_host_random_seed ();
+    host -> randomSeed = (secudp_uint32) (size_t) host;
+    host -> randomSeed += secudp_host_random_seed ();
     host -> randomSeed = (host -> randomSeed << 16) | (host -> randomSeed >> 16);
     host -> channelLimit = channelLimit;
     host -> incomingBandwidth = incomingBandwidth;
     host -> outgoingBandwidth = outgoingBandwidth;
     host -> bandwidthThrottleEpoch = 0;
     host -> recalculateBandwidthLimits = 0;
-    host -> mtu = ENET_HOST_DEFAULT_MTU;
+    host -> mtu = SECUDP_HOST_DEFAULT_MTU;
     host -> peerCount = peerCount;
     host -> commandCount = 0;
     host -> bufferCount = 0;
     host -> checksum = NULL;
-    host -> receivedAddress.host = ENET_HOST_ANY;
+    host -> receivedAddress.host = SECUDP_HOST_ANY;
     host -> receivedAddress.port = 0;
     host -> receivedData = NULL;
     host -> receivedDataLength = 0;
@@ -99,9 +99,9 @@ enet_host_create (const ENetAddress * address, size_t peerCount, size_t channelL
 
     host -> connectedPeers = 0;
     host -> bandwidthLimitedPeers = 0;
-    host -> duplicatePeers = ENET_PROTOCOL_MAXIMUM_PEER_ID;
-    host -> maximumPacketSize = ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE;
-    host -> maximumWaitingData = ENET_HOST_DEFAULT_MAXIMUM_WAITING_DATA;
+    host -> duplicatePeers = SECUDP_PROTOCOL_MAXIMUM_PEER_ID;
+    host -> maximumPacketSize = SECUDP_HOST_DEFAULT_MAXIMUM_PACKET_SIZE;
+    host -> maximumWaitingData = SECUDP_HOST_DEFAULT_MAXIMUM_WAITING_DATA;
 
     host -> compressor.context = NULL;
     host -> compressor.compress = NULL;
@@ -110,7 +110,7 @@ enet_host_create (const ENetAddress * address, size_t peerCount, size_t channelL
 
     host -> intercept = NULL;
 
-    enet_list_clear (& host -> dispatchQueue);
+    secudp_list_clear (& host -> dispatchQueue);
 
     for (currentPeer = host -> peers;
          currentPeer < & host -> peers [host -> peerCount];
@@ -121,13 +121,13 @@ enet_host_create (const ENetAddress * address, size_t peerCount, size_t channelL
        currentPeer -> outgoingSessionID = currentPeer -> incomingSessionID = 0xFF;
        currentPeer -> data = NULL;
 
-       enet_list_clear (& currentPeer -> acknowledgements);
-       enet_list_clear (& currentPeer -> sentReliableCommands);
-       enet_list_clear (& currentPeer -> sentUnreliableCommands);
-       enet_list_clear (& currentPeer -> outgoingCommands);
-       enet_list_clear (& currentPeer -> dispatchedCommands);
+       secudp_list_clear (& currentPeer -> acknowledgements);
+       secudp_list_clear (& currentPeer -> sentReliableCommands);
+       secudp_list_clear (& currentPeer -> sentUnreliableCommands);
+       secudp_list_clear (& currentPeer -> outgoingCommands);
+       secudp_list_clear (& currentPeer -> dispatchedCommands);
 
-       enet_peer_reset (currentPeer);
+       secudp_peer_reset (currentPeer);
     }
 
     return host;
@@ -137,27 +137,27 @@ enet_host_create (const ENetAddress * address, size_t peerCount, size_t channelL
     @param host pointer to the host to destroy
 */
 void
-enet_host_destroy (ENetHost * host)
+secudp_host_destroy (SecUdpHost * host)
 {
-    ENetPeer * currentPeer;
+    SecUdpPeer * currentPeer;
 
     if (host == NULL)
       return;
 
-    enet_socket_destroy (host -> socket);
+    secudp_socket_destroy (host -> socket);
 
     for (currentPeer = host -> peers;
          currentPeer < & host -> peers [host -> peerCount];
          ++ currentPeer)
     {
-       enet_peer_reset (currentPeer);
+       secudp_peer_reset (currentPeer);
     }
 
     if (host -> compressor.context != NULL && host -> compressor.destroy)
       (* host -> compressor.destroy) (host -> compressor.context);
 
-    enet_free (host -> peers);
-    enet_free (host);
+    secudp_free (host -> peers);
+    secudp_free (host);
 }
 
 /** Initiates a connection to a foreign host.
@@ -166,53 +166,53 @@ enet_host_destroy (ENetHost * host)
     @param channelCount number of channels to allocate
     @param data user data supplied to the receiving host 
     @returns a peer representing the foreign host on success, NULL on failure
-    @remarks The peer returned will have not completed the connection until enet_host_service()
-    notifies of an ENET_EVENT_TYPE_CONNECT event for the peer.
+    @remarks The peer returned will have not completed the connection until secudp_host_service()
+    notifies of an SECUDP_EVENT_TYPE_CONNECT event for the peer.
 */
-ENetPeer *
-enet_host_connect (ENetHost * host, const ENetAddress * address, size_t channelCount, enet_uint32 data)
+SecUdpPeer *
+secudp_host_connect (SecUdpHost * host, const SecUdpAddress * address, size_t channelCount, secudp_uint32 data)
 {
-    ENetPeer * currentPeer;
-    ENetChannel * channel;
-    ENetProtocol command;
+    SecUdpPeer * currentPeer;
+    SecUdpChannel * channel;
+    SecUdpProtocol command;
 
-    if (channelCount < ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT)
-      channelCount = ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT;
+    if (channelCount < SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT)
+      channelCount = SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT;
     else
-    if (channelCount > ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
-      channelCount = ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
+    if (channelCount > SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
+      channelCount = SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
 
     for (currentPeer = host -> peers;
          currentPeer < & host -> peers [host -> peerCount];
          ++ currentPeer)
     {
-       if (currentPeer -> state == ENET_PEER_STATE_DISCONNECTED)
+       if (currentPeer -> state == SECUDP_PEER_STATE_DISCONNECTED)
          break;
     }
 
     if (currentPeer >= & host -> peers [host -> peerCount])
       return NULL;
 
-    currentPeer -> channels = (ENetChannel *) enet_malloc (channelCount * sizeof (ENetChannel));
+    currentPeer -> channels = (SecUdpChannel *) secudp_malloc (channelCount * sizeof (SecUdpChannel));
     if (currentPeer -> channels == NULL)
       return NULL;
     currentPeer -> channelCount = channelCount;
-    currentPeer -> state = ENET_PEER_STATE_CONNECTING;
+    currentPeer -> state = SECUDP_PEER_STATE_CONNECTING;
     currentPeer -> address = * address;
     currentPeer -> connectID = ++ host -> randomSeed;
 
     if (host -> outgoingBandwidth == 0)
-      currentPeer -> windowSize = ENET_PROTOCOL_MAXIMUM_WINDOW_SIZE;
+      currentPeer -> windowSize = SECUDP_PROTOCOL_MAXIMUM_WINDOW_SIZE;
     else
       currentPeer -> windowSize = (host -> outgoingBandwidth /
-                                    ENET_PEER_WINDOW_SIZE_SCALE) * 
-                                      ENET_PROTOCOL_MINIMUM_WINDOW_SIZE;
+                                    SECUDP_PEER_WINDOW_SIZE_SCALE) * 
+                                      SECUDP_PROTOCOL_MINIMUM_WINDOW_SIZE;
 
-    if (currentPeer -> windowSize < ENET_PROTOCOL_MINIMUM_WINDOW_SIZE)
-      currentPeer -> windowSize = ENET_PROTOCOL_MINIMUM_WINDOW_SIZE;
+    if (currentPeer -> windowSize < SECUDP_PROTOCOL_MINIMUM_WINDOW_SIZE)
+      currentPeer -> windowSize = SECUDP_PROTOCOL_MINIMUM_WINDOW_SIZE;
     else
-    if (currentPeer -> windowSize > ENET_PROTOCOL_MAXIMUM_WINDOW_SIZE)
-      currentPeer -> windowSize = ENET_PROTOCOL_MAXIMUM_WINDOW_SIZE;
+    if (currentPeer -> windowSize > SECUDP_PROTOCOL_MAXIMUM_WINDOW_SIZE)
+      currentPeer -> windowSize = SECUDP_PROTOCOL_MAXIMUM_WINDOW_SIZE;
          
     for (channel = currentPeer -> channels;
          channel < & currentPeer -> channels [channelCount];
@@ -223,30 +223,30 @@ enet_host_connect (ENetHost * host, const ENetAddress * address, size_t channelC
         channel -> incomingReliableSequenceNumber = 0;
         channel -> incomingUnreliableSequenceNumber = 0;
 
-        enet_list_clear (& channel -> incomingReliableCommands);
-        enet_list_clear (& channel -> incomingUnreliableCommands);
+        secudp_list_clear (& channel -> incomingReliableCommands);
+        secudp_list_clear (& channel -> incomingUnreliableCommands);
 
         channel -> usedReliableWindows = 0;
         memset (channel -> reliableWindows, 0, sizeof (channel -> reliableWindows));
     }
         
-    command.header.command = ENET_PROTOCOL_COMMAND_CONNECT | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+    command.header.command = SECUDP_PROTOCOL_COMMAND_CONNECT | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
     command.header.channelID = 0xFF;
-    command.connect.outgoingPeerID = ENET_HOST_TO_NET_16 (currentPeer -> incomingPeerID);
+    command.connect.outgoingPeerID = SECUDP_HOST_TO_NET_16 (currentPeer -> incomingPeerID);
     command.connect.incomingSessionID = currentPeer -> incomingSessionID;
     command.connect.outgoingSessionID = currentPeer -> outgoingSessionID;
-    command.connect.mtu = ENET_HOST_TO_NET_32 (currentPeer -> mtu);
-    command.connect.windowSize = ENET_HOST_TO_NET_32 (currentPeer -> windowSize);
-    command.connect.channelCount = ENET_HOST_TO_NET_32 (channelCount);
-    command.connect.incomingBandwidth = ENET_HOST_TO_NET_32 (host -> incomingBandwidth);
-    command.connect.outgoingBandwidth = ENET_HOST_TO_NET_32 (host -> outgoingBandwidth);
-    command.connect.packetThrottleInterval = ENET_HOST_TO_NET_32 (currentPeer -> packetThrottleInterval);
-    command.connect.packetThrottleAcceleration = ENET_HOST_TO_NET_32 (currentPeer -> packetThrottleAcceleration);
-    command.connect.packetThrottleDeceleration = ENET_HOST_TO_NET_32 (currentPeer -> packetThrottleDeceleration);
+    command.connect.mtu = SECUDP_HOST_TO_NET_32 (currentPeer -> mtu);
+    command.connect.windowSize = SECUDP_HOST_TO_NET_32 (currentPeer -> windowSize);
+    command.connect.channelCount = SECUDP_HOST_TO_NET_32 (channelCount);
+    command.connect.incomingBandwidth = SECUDP_HOST_TO_NET_32 (host -> incomingBandwidth);
+    command.connect.outgoingBandwidth = SECUDP_HOST_TO_NET_32 (host -> outgoingBandwidth);
+    command.connect.packetThrottleInterval = SECUDP_HOST_TO_NET_32 (currentPeer -> packetThrottleInterval);
+    command.connect.packetThrottleAcceleration = SECUDP_HOST_TO_NET_32 (currentPeer -> packetThrottleAcceleration);
+    command.connect.packetThrottleDeceleration = SECUDP_HOST_TO_NET_32 (currentPeer -> packetThrottleDeceleration);
     command.connect.connectID = currentPeer -> connectID;
-    command.connect.data = ENET_HOST_TO_NET_32 (data);
+    command.connect.data = SECUDP_HOST_TO_NET_32 (data);
  
-    enet_peer_queue_outgoing_command (currentPeer, & command, NULL, 0, 0);
+    secudp_peer_queue_outgoing_command (currentPeer, & command, NULL, 0, 0);
 
     return currentPeer;
 }
@@ -257,22 +257,22 @@ enet_host_connect (ENetHost * host, const ENetAddress * address, size_t channelC
     @param packet packet to broadcast
 */
 void
-enet_host_broadcast (ENetHost * host, enet_uint8 channelID, ENetPacket * packet)
+secudp_host_broadcast (SecUdpHost * host, secudp_uint8 channelID, SecUdpPacket * packet)
 {
-    ENetPeer * currentPeer;
+    SecUdpPeer * currentPeer;
 
     for (currentPeer = host -> peers;
          currentPeer < & host -> peers [host -> peerCount];
          ++ currentPeer)
     {
-       if (currentPeer -> state != ENET_PEER_STATE_CONNECTED)
+       if (currentPeer -> state != SECUDP_PEER_STATE_CONNECTED)
          continue;
 
-       enet_peer_send (currentPeer, channelID, packet);
+       secudp_peer_send (currentPeer, channelID, packet);
     }
 
     if (packet -> referenceCount == 0)
-      enet_packet_destroy (packet);
+      secudp_packet_destroy (packet);
 }
 
 /** Sets the packet compressor the host should use to compress and decompress packets.
@@ -280,7 +280,7 @@ enet_host_broadcast (ENetHost * host, enet_uint8 channelID, ENetPacket * packet)
     @param compressor callbacks for for the packet compressor; if NULL, then compression is disabled
 */
 void
-enet_host_compress (ENetHost * host, const ENetCompressor * compressor)
+secudp_host_compress (SecUdpHost * host, const SecUdpCompressor * compressor)
 {
     if (host -> compressor.context != NULL && host -> compressor.destroy)
       (* host -> compressor.destroy) (host -> compressor.context);
@@ -293,16 +293,16 @@ enet_host_compress (ENetHost * host, const ENetCompressor * compressor)
 
 /** Limits the maximum allowed channels of future incoming connections.
     @param host host to limit
-    @param channelLimit the maximum number of channels allowed; if 0, then this is equivalent to ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT
+    @param channelLimit the maximum number of channels allowed; if 0, then this is equivalent to SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT
 */
 void
-enet_host_channel_limit (ENetHost * host, size_t channelLimit)
+secudp_host_channel_limit (SecUdpHost * host, size_t channelLimit)
 {
-    if (! channelLimit || channelLimit > ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
-      channelLimit = ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
+    if (! channelLimit || channelLimit > SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT)
+      channelLimit = SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT;
     else
-    if (channelLimit < ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT)
-      channelLimit = ENET_PROTOCOL_MINIMUM_CHANNEL_COUNT;
+    if (channelLimit < SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT)
+      channelLimit = SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT;
 
     host -> channelLimit = channelLimit;
 }
@@ -313,10 +313,10 @@ enet_host_channel_limit (ENetHost * host, size_t channelLimit)
     @param incomingBandwidth new incoming bandwidth
     @param outgoingBandwidth new outgoing bandwidth
     @remarks the incoming and outgoing bandwidth parameters are identical in function to those
-    specified in enet_host_create().
+    specified in secudp_host_create().
 */
 void
-enet_host_bandwidth_limit (ENetHost * host, enet_uint32 incomingBandwidth, enet_uint32 outgoingBandwidth)
+secudp_host_bandwidth_limit (SecUdpHost * host, secudp_uint32 incomingBandwidth, secudp_uint32 outgoingBandwidth)
 {
     host -> incomingBandwidth = incomingBandwidth;
     host -> outgoingBandwidth = outgoingBandwidth;
@@ -324,20 +324,20 @@ enet_host_bandwidth_limit (ENetHost * host, enet_uint32 incomingBandwidth, enet_
 }
 
 void
-enet_host_bandwidth_throttle (ENetHost * host)
+secudp_host_bandwidth_throttle (SecUdpHost * host)
 {
-    enet_uint32 timeCurrent = enet_time_get (),
+    secudp_uint32 timeCurrent = secudp_time_get (),
            elapsedTime = timeCurrent - host -> bandwidthThrottleEpoch,
-           peersRemaining = (enet_uint32) host -> connectedPeers,
+           peersRemaining = (secudp_uint32) host -> connectedPeers,
            dataTotal = ~0,
            bandwidth = ~0,
            throttle = 0,
            bandwidthLimit = 0;
     int needsAdjustment = host -> bandwidthLimitedPeers > 0 ? 1 : 0;
-    ENetPeer * peer;
-    ENetProtocol command;
+    SecUdpPeer * peer;
+    SecUdpProtocol command;
 
-    if (elapsedTime < ENET_HOST_BANDWIDTH_THROTTLE_INTERVAL)
+    if (elapsedTime < SECUDP_HOST_BANDWIDTH_THROTTLE_INTERVAL)
       return;
 
     host -> bandwidthThrottleEpoch = timeCurrent;
@@ -354,7 +354,7 @@ enet_host_bandwidth_throttle (ENetHost * host)
              peer < & host -> peers [host -> peerCount];
             ++ peer)
         {
-            if (peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER)
+            if (peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER)
               continue;
 
             dataTotal += peer -> outgoingDataTotal;
@@ -366,27 +366,27 @@ enet_host_bandwidth_throttle (ENetHost * host)
         needsAdjustment = 0;
         
         if (dataTotal <= bandwidth)
-          throttle = ENET_PEER_PACKET_THROTTLE_SCALE;
+          throttle = SECUDP_PEER_PACKET_THROTTLE_SCALE;
         else
-          throttle = (bandwidth * ENET_PEER_PACKET_THROTTLE_SCALE) / dataTotal;
+          throttle = (bandwidth * SECUDP_PEER_PACKET_THROTTLE_SCALE) / dataTotal;
 
         for (peer = host -> peers;
              peer < & host -> peers [host -> peerCount];
              ++ peer)
         {
-            enet_uint32 peerBandwidth;
+            secudp_uint32 peerBandwidth;
             
-            if ((peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER) ||
+            if ((peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER) ||
                 peer -> incomingBandwidth == 0 ||
                 peer -> outgoingBandwidthThrottleEpoch == timeCurrent)
               continue;
 
             peerBandwidth = (peer -> incomingBandwidth * elapsedTime) / 1000;
-            if ((throttle * peer -> outgoingDataTotal) / ENET_PEER_PACKET_THROTTLE_SCALE <= peerBandwidth)
+            if ((throttle * peer -> outgoingDataTotal) / SECUDP_PEER_PACKET_THROTTLE_SCALE <= peerBandwidth)
               continue;
 
             peer -> packetThrottleLimit = (peerBandwidth * 
-                                            ENET_PEER_PACKET_THROTTLE_SCALE) / peer -> outgoingDataTotal;
+                                            SECUDP_PEER_PACKET_THROTTLE_SCALE) / peer -> outgoingDataTotal;
             
             if (peer -> packetThrottleLimit == 0)
               peer -> packetThrottleLimit = 1;
@@ -409,15 +409,15 @@ enet_host_bandwidth_throttle (ENetHost * host)
     if (peersRemaining > 0)
     {
         if (dataTotal <= bandwidth)
-          throttle = ENET_PEER_PACKET_THROTTLE_SCALE;
+          throttle = SECUDP_PEER_PACKET_THROTTLE_SCALE;
         else
-          throttle = (bandwidth * ENET_PEER_PACKET_THROTTLE_SCALE) / dataTotal;
+          throttle = (bandwidth * SECUDP_PEER_PACKET_THROTTLE_SCALE) / dataTotal;
 
         for (peer = host -> peers;
              peer < & host -> peers [host -> peerCount];
              ++ peer)
         {
-            if ((peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER) ||
+            if ((peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER) ||
                 peer -> outgoingBandwidthThrottleEpoch == timeCurrent)
               continue;
 
@@ -435,7 +435,7 @@ enet_host_bandwidth_throttle (ENetHost * host)
     {
        host -> recalculateBandwidthLimits = 0;
 
-       peersRemaining = (enet_uint32) host -> connectedPeers;
+       peersRemaining = (secudp_uint32) host -> connectedPeers;
        bandwidth = host -> incomingBandwidth;
        needsAdjustment = 1;
 
@@ -451,7 +451,7 @@ enet_host_bandwidth_throttle (ENetHost * host)
                 peer < & host -> peers [host -> peerCount];
                 ++ peer)
            {
-               if ((peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER) ||
+               if ((peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER) ||
                    peer -> incomingBandwidthThrottleEpoch == timeCurrent)
                  continue;
 
@@ -471,19 +471,19 @@ enet_host_bandwidth_throttle (ENetHost * host)
             peer < & host -> peers [host -> peerCount];
             ++ peer)
        {
-           if (peer -> state != ENET_PEER_STATE_CONNECTED && peer -> state != ENET_PEER_STATE_DISCONNECT_LATER)
+           if (peer -> state != SECUDP_PEER_STATE_CONNECTED && peer -> state != SECUDP_PEER_STATE_DISCONNECT_LATER)
              continue;
 
-           command.header.command = ENET_PROTOCOL_COMMAND_BANDWIDTH_LIMIT | ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
+           command.header.command = SECUDP_PROTOCOL_COMMAND_BANDWIDTH_LIMIT | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
            command.header.channelID = 0xFF;
-           command.bandwidthLimit.outgoingBandwidth = ENET_HOST_TO_NET_32 (host -> outgoingBandwidth);
+           command.bandwidthLimit.outgoingBandwidth = SECUDP_HOST_TO_NET_32 (host -> outgoingBandwidth);
 
            if (peer -> incomingBandwidthThrottleEpoch == timeCurrent)
-             command.bandwidthLimit.incomingBandwidth = ENET_HOST_TO_NET_32 (peer -> outgoingBandwidth);
+             command.bandwidthLimit.incomingBandwidth = SECUDP_HOST_TO_NET_32 (peer -> outgoingBandwidth);
            else
-             command.bandwidthLimit.incomingBandwidth = ENET_HOST_TO_NET_32 (bandwidthLimit);
+             command.bandwidthLimit.incomingBandwidth = SECUDP_HOST_TO_NET_32 (bandwidthLimit);
 
-           enet_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
+           secudp_peer_queue_outgoing_command (peer, & command, NULL, 0, 0);
        } 
     }
 }

@@ -4,7 +4,7 @@ libdir=@libdir@
 includedir=@includedir@
 
 Name: @PACKAGE_NAME@
-Description: Low-latency UDP networking library supporting optional reliability
+Description: ENet with Security
 Version: @PACKAGE_VERSION@
 Cflags: -I${includedir}
-Libs: -L${libdir} -lenet
+Libs: -L${libdir} -lsecudp
