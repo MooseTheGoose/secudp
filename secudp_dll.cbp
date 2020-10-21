@@ -2,12 +2,12 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="enet_dll" />
+		<Option title="secudp_dll" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin\Debug\libenet" prefix_auto="1" extension_auto="1" />
+				<Option output="bin\Debug\libsecudp" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj\Debug\" />
 				<Option type="3" />
 				<Option compiler="gcc" />
@@ -18,7 +18,7 @@
 				</Compiler>
 			</Target>
 			<Target title="Release">
-				<Option output="bin\Release\libenet" prefix_auto="1" extension_auto="1" />
+				<Option output="bin\Release\libsecudp" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj\Release\" />
 				<Option type="3" />
 				<Option compiler="gcc" />
@@ -50,15 +50,15 @@
 		<Unit filename="host.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="include\enet\callbacks.h" />
-		<Unit filename="include\enet\enet.h" />
-		<Unit filename="include\enet\list.h" />
-		<Unit filename="include\enet\protocol.h" />
-		<Unit filename="include\enet\time.h" />
-		<Unit filename="include\enet\types.h" />
-		<Unit filename="include\enet\unix.h" />
-		<Unit filename="include\enet\utility.h" />
-		<Unit filename="include\enet\win32.h" />
+		<Unit filename="include\secudp\callbacks.h" />
+		<Unit filename="include\secudp\secudp.h" />
+		<Unit filename="include\secudp\list.h" />
+		<Unit filename="include\secudp\protocol.h" />
+		<Unit filename="include\secudp\time.h" />
+		<Unit filename="include\secudp\types.h" />
+		<Unit filename="include\secudp\unix.h" />
+		<Unit filename="include\secudp\utility.h" />
+		<Unit filename="include\secudp\win32.h" />
 		<Unit filename="list.c">
 			<Option compilerVar="CC" />
 		</Unit>

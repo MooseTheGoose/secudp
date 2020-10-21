@@ -26,7 +26,7 @@
     at any given time.
 */
 SecUdpHost *
-secudp_host_create (const SecUdpAddress * address, size_t peerCount, size_t channelLimit, secudp_uint32 incomingBandwidth, secudp_uint32 outgoingBandwidth)
+secudp_host_create (const SecUdpAddress * address, const SecUdpHostSecret * secret, size_t peerCount, size_t channelLimit, secudp_uint32 incomingBandwidth, secudp_uint32 outgoingBandwidth)
 {
     SecUdpHost * host;
     SecUdpPeer * currentPeer;
@@ -39,9 +39,18 @@ secudp_host_create (const SecUdpAddress * address, size_t peerCount, size_t chan
       return NULL;
     memset (host, 0, sizeof (SecUdpHost));
 
+    host->secret = (SecUdpHostSecret *) secudp_malloc(sizeof(SecUdpHostSecret));
+    if(host->secret == NULL) 
+    {
+      secudp_free(host);
+      return NULL;
+    }
+    memcpy(host->secret, secret, sizeof(SecUdpHostSecret));
+
     host -> peers = (SecUdpPeer *) secudp_malloc (peerCount * sizeof (SecUdpPeer));
     if (host -> peers == NULL)
     {
+       secudp_free (host->secret);
        secudp_free (host);
 
        return NULL;
@@ -55,6 +64,7 @@ secudp_host_create (const SecUdpAddress * address, size_t peerCount, size_t chan
          secudp_socket_destroy (host -> socket);
 
        secudp_free (host -> peers);
+       secudp_free (host->secret);
        secudp_free (host);
 
        return NULL;
@@ -157,6 +167,7 @@ secudp_host_destroy (SecUdpHost * host)
       (* host -> compressor.destroy) (host -> compressor.context);
 
     secudp_free (host -> peers);
+    secudp_free (host -> secret);
     secudp_free (host);
 }
 

@@ -255,6 +255,11 @@ typedef enum _SecUdpPeerFlag
    SECUDP_PEER_FLAG_NEEDS_DISPATCH = (1 << 0)
 } SecUdpPeerFlag;
 
+typedef struct _SecUdpPeerSecret {
+  secudp_uint32 mac_key[8];
+  secudp_uint32 chacha_key[8];
+} SecUdpPeerSecret;
+
 /**
  * An SecUdp peer which data packets may be sent or received from. 
  *
@@ -322,6 +327,8 @@ typedef struct _SecUdpPeer
    secudp_uint32   unsequencedWindow [SECUDP_PEER_UNSEQUENCED_WINDOW_SIZE / 32]; 
    secudp_uint32   eventData;
    size_t        totalWaitingData;
+
+   SecUdpPeerSecret *secret;
 } SecUdpPeer;
 
 /** An SecUdp packet compressor for compressing UDP packets before socket sends or receives.
@@ -343,7 +350,12 @@ typedef secudp_uint32 (SECUDP_CALLBACK * SecUdpChecksumCallback) (const SecUdpBu
 
 /** Callback for intercepting received raw UDP packets. Should return 1 to intercept, 0 to ignore, or -1 to propagate an error. */
 typedef int (SECUDP_CALLBACK * SecUdpInterceptCallback) (struct _SecUdpHost * host, struct _SecUdpEvent * event);
- 
+
+typedef struct _SecUdpHostSecret {
+  secudp_uint32 privateKey[8];
+  secudp_uint32 publicKey[8];
+} SecUdpHostSecret;
+
 /** An SecUdp host for communicating with peers.
   *
   * No fields should be modified unless otherwise stated.
@@ -398,6 +410,8 @@ typedef struct _SecUdpHost
    size_t               duplicatePeers;              /**< optional number of allowed peers from duplicate IPs, defaults to SECUDP_PROTOCOL_MAXIMUM_PEER_ID */
    size_t               maximumPacketSize;           /**< the maximum allowable packet size that may be sent or received on a peer */
    size_t               maximumWaitingData;          /**< the maximum aggregate amount of buffer space a peer may use waiting for packets to be delivered */
+
+   SecUdpHostSecret *secret;
 } SecUdpHost;
 
 /**
@@ -562,7 +576,7 @@ SECUDP_API void         secudp_packet_destroy (SecUdpPacket *);
 SECUDP_API int          secudp_packet_resize  (SecUdpPacket *, size_t);
 SECUDP_API secudp_uint32  secudp_crc32 (const SecUdpBuffer *, size_t);
                 
-SECUDP_API SecUdpHost * secudp_host_create (const SecUdpAddress *, size_t, size_t, secudp_uint32, secudp_uint32);
+SECUDP_API SecUdpHost * secudp_host_create (const SecUdpAddress *, const SecUdpHostSecret *secret, size_t, size_t, secudp_uint32, secudp_uint32);
 SECUDP_API void       secudp_host_destroy (SecUdpHost *);
 SECUDP_API SecUdpPeer * secudp_host_connect (SecUdpHost *, const SecUdpAddress *, size_t, secudp_uint32);
 SECUDP_API int        secudp_host_check_events (SecUdpHost *, SecUdpEvent *);

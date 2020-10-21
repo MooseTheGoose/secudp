@@ -1,24 +1,24 @@
-# Microsoft Developer Studio Project File - Name="enet" - Package Owner=<4>
+# Microsoft Developer Studio Project File - Name="secudp" - Package Owner=<4>
 # Microsoft Developer Studio Generated Build File, Format Version 6.00
 # ** DO NOT EDIT **
 
 # TARGTYPE "Win32 (x86) Static Library" 0x0104
 
-CFG=enet - Win32 Debug
+CFG=secudp - Win32 Debug
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
 !MESSAGE 
-!MESSAGE NMAKE /f "enet.mak".
+!MESSAGE NMAKE /f "secudp.mak".
 !MESSAGE 
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "enet.mak" CFG="enet - Win32 Debug"
+!MESSAGE NMAKE /f "secudp.mak" CFG="secudp - Win32 Debug"
 !MESSAGE 
 !MESSAGE Possible choices for configuration are:
 !MESSAGE 
-!MESSAGE "enet - Win32 Release" (based on "Win32 (x86) Static Library")
-!MESSAGE "enet - Win32 Debug" (based on "Win32 (x86) Static Library")
+!MESSAGE "secudp - Win32 Release" (based on "Win32 (x86) Static Library")
+!MESSAGE "secudp - Win32 Debug" (based on "Win32 (x86) Static Library")
 !MESSAGE 
 
 # Begin Project
@@ -28,7 +28,7 @@ CFG=enet - Win32 Debug
 CPP=cl.exe
 RSC=rc.exe
 
-!IF  "$(CFG)" == "enet - Win32 Release"
+!IF  "$(CFG)" == "secudp - Win32 Release"
 
 # PROP BASE Use_MFC 0
 # PROP BASE Use_Debug_Libraries 0
@@ -53,7 +53,7 @@ LIB32=link.exe -lib
 # ADD BASE LIB32 /nologo
 # ADD LIB32 /nologo
 
-!ELSEIF  "$(CFG)" == "enet - Win32 Debug"
+!ELSEIF  "$(CFG)" == "secudp - Win32 Debug"
 
 # PROP BASE Use_MFC 0
 # PROP BASE Use_Debug_Libraries 1
@@ -82,8 +82,8 @@ LIB32=link.exe -lib
 
 # Begin Target
 
-# Name "enet - Win32 Release"
-# Name "enet - Win32 Debug"
+# Name "secudp - Win32 Release"
+# Name "secudp - Win32 Debug"
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
@@ -129,39 +129,39 @@ SOURCE=.\win32.c
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=.\include\enet\enet.h
+SOURCE=.\include\secudp\secudp.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\list.h
+SOURCE=.\include\secudp\list.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\callbacks.h
+SOURCE=.\include\secudp\callbacks.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\protocol.h
+SOURCE=.\include\secudp\protocol.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\time.h
+SOURCE=.\include\secudp\time.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\types.h
+SOURCE=.\include\secudp\types.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\unix.h
+SOURCE=.\include\secudp\unix.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\utility.h
+SOURCE=.\include\secudp\utility.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\enet\win32.h
+SOURCE=.\include\secudp\win32.h
 # End Source File
 # End Group
 # End Target

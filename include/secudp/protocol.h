@@ -35,8 +35,9 @@ typedef enum _SecUdpProtocolCommand
    SECUDP_PROTOCOL_COMMAND_BANDWIDTH_LIMIT    = 10,
    SECUDP_PROTOCOL_COMMAND_THROTTLE_CONFIGURE = 11,
    SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT = 12,
-   SECUDP_PROTOCOL_COMMAND_COUNT              = 13,
-
+   SECUDP_PROTOCOL_COMMAND_PEER_HELL0         = 13,
+   SECUDP_PROTOCOL_COMMAND_HOST_HELLO         = 14,
+   SECUDP_PROTOCOL_COMMAND_COUNT              = 15,
    SECUDP_PROTOCOL_COMMAND_MASK               = 0x0F
 } SecUdpProtocolCommand;
 
@@ -174,6 +175,23 @@ typedef struct _SecUdpProtocolSendFragment
    secudp_uint32 fragmentOffset;
 } SECUDP_PACKED SecUdpProtocolSendFragment;
 
+typedef struct _SecUdpProtocolPeerHello {
+  SecUdpProtocolCommandHeader header;
+  /* 
+   * Send reliable packet with public MAC
+   * and ChaCha variables.
+   */
+} SecUdpProtocolPeerHello;
+
+typedef struct _SecUdpProtocolHostHello {
+  SecUdpProtocolCommandHeader header;
+  /*
+   *  Send reliable packet with public MAC
+   *  and ChaCha variables, as well as
+   *  an EdDSA signature. 
+   */
+} SecUdpProtocolHostHello;
+
 typedef union _SecUdpProtocol
 {
    SecUdpProtocolCommandHeader header;
@@ -188,7 +206,11 @@ typedef union _SecUdpProtocol
    SecUdpProtocolSendFragment sendFragment;
    SecUdpProtocolBandwidthLimit bandwidthLimit;
    SecUdpProtocolThrottleConfigure throttleConfigure;
+   SecUdpProtocolPeerHello peerHello;
+   SecUdpProtocolHostHello hostHello;
 } SECUDP_PACKED SecUdpProtocol;
+
+
 
 #ifdef _MSC_VER
 #pragma pack(pop)
