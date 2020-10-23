@@ -18,4 +18,9 @@ details.
 * Update licenses so that it adequately gives credit to
   Lee Salzmann for providing an amazing starting point.
 
+* Find out how to include libsodium source and build process
+  into secudp so that I can use that instead of handmaking
+  cryptographic functions. Also reference libsodium in
+  the license.
+
 

@@ -8,6 +8,9 @@
 #include "secudp/secudp.h"
 #include <windows.h>
 #include <mmsystem.h>
+#include <bcrypt.h>
+#include <sodium.h>
+
 
 static secudp_uint32 timeBase = 0;
 
@@ -29,7 +32,9 @@ secudp_initialize (void)
     }
 
     timeBeginPeriod (1);
-
+    if(sodium_init() < 0)
+      return -1;
+      
     return 0;
 }
 

@@ -4,6 +4,8 @@
 */
 #ifndef _WIN32
 
+#include <stdio.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -61,11 +63,15 @@ typedef int socklen_t;
 #define MSG_NOSIGNAL 0
 #endif
 
+#include <sodium.h>
 static secudp_uint32 timeBase = 0;
 
 int
 secudp_initialize (void)
 {
+    if(sodium_init() < 0)
+      return -1;
+
     return 0;
 }
 

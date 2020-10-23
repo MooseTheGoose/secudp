@@ -24,8 +24,8 @@ extern "C"
 #include "secudp/callbacks.h"
 
 #define SECUDP_VERSION_MAJOR 1
-#define SECUDP_VERSION_MINOR 3
-#define SECUDP_VERSION_PATCH 16
+#define SECUDP_VERSION_MINOR 0 
+#define SECUDP_VERSION_PATCH 0 
 #define SECUDP_VERSION_CREATE(major, minor, patch) (((major)<<16) | ((minor)<<8) | (patch))
 #define SECUDP_VERSION_GET_MAJOR(version) (((version)>>16)&0xFF)
 #define SECUDP_VERSION_GET_MINOR(version) (((version)>>8)&0xFF)

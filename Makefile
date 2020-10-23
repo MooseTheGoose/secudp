@@ -138,7 +138,7 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(pkgconfigdir)" \
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libsecudp_la_LIBADD =
 am_libsecudp_la_OBJECTS = callbacks.lo compress.lo host.lo list.lo \
-	packet.lo peer.lo protocol.lo unix.lo win32.lo
+	packet.lo peer.lo protocol.lo unix.lo win32.lo crypto.lo
 libsecudp_la_OBJECTS = $(am_libsecudp_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -163,10 +163,11 @@ DEFAULT_INCLUDES = -I.
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/callbacks.Plo \
-	./$(DEPDIR)/compress.Plo ./$(DEPDIR)/host.Plo \
-	./$(DEPDIR)/list.Plo ./$(DEPDIR)/packet.Plo \
-	./$(DEPDIR)/peer.Plo ./$(DEPDIR)/protocol.Plo \
-	./$(DEPDIR)/unix.Plo ./$(DEPDIR)/win32.Plo
+	./$(DEPDIR)/compress.Plo ./$(DEPDIR)/crypto.Plo \
+	./$(DEPDIR)/host.Plo ./$(DEPDIR)/list.Plo \
+	./$(DEPDIR)/packet.Plo ./$(DEPDIR)/peer.Plo \
+	./$(DEPDIR)/protocol.Plo ./$(DEPDIR)/unix.Plo \
+	./$(DEPDIR)/win32.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -367,7 +368,7 @@ secudpinclude_HEADERS = \
 	include/secudp/win32.h
 
 lib_LTLIBRARIES = libsecudp.la
-libsecudp_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c
+libsecudp_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c crypto.c
 # see info '(libtool) Updating version info' before making a release
 libsecudp_la_LDFLAGS = $(AM_LDFLAGS) -version-info 7:4:0
 AM_CPPFLAGS = -I$(top_srcdir)/include
@@ -458,6 +459,7 @@ distclean-compile:
 
 include ./$(DEPDIR)/callbacks.Plo # am--include-marker
 include ./$(DEPDIR)/compress.Plo # am--include-marker
+include ./$(DEPDIR)/crypto.Plo # am--include-marker
 include ./$(DEPDIR)/host.Plo # am--include-marker
 include ./$(DEPDIR)/list.Plo # am--include-marker
 include ./$(DEPDIR)/packet.Plo # am--include-marker
@@ -815,6 +817,7 @@ distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 		-rm -f ./$(DEPDIR)/callbacks.Plo
 	-rm -f ./$(DEPDIR)/compress.Plo
+	-rm -f ./$(DEPDIR)/crypto.Plo
 	-rm -f ./$(DEPDIR)/host.Plo
 	-rm -f ./$(DEPDIR)/list.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo
@@ -872,6 +875,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -rf $(top_srcdir)/autom4te.cache
 		-rm -f ./$(DEPDIR)/callbacks.Plo
 	-rm -f ./$(DEPDIR)/compress.Plo
+	-rm -f ./$(DEPDIR)/crypto.Plo
 	-rm -f ./$(DEPDIR)/host.Plo
 	-rm -f ./$(DEPDIR)/list.Plo
 	-rm -f ./$(DEPDIR)/packet.Plo
