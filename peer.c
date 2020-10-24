@@ -5,6 +5,7 @@
 #include <string.h>
 #define SECUDP_BUILDING_LIB 1
 #include "secudp/secudp.h"
+#include "secudp/crypto.h"
 
 /** @defgroup peer SecUdp peer functions 
     @{
@@ -102,19 +103,37 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
    SecUdpChannel * channel = & peer -> channels [channelID];
    SecUdpProtocol command;
    size_t fragmentLength;
+   secudp_uint8 *ciphertext;
+   secudp_uint8 *nonce;
+   secudp_uint8 *mac;
+
+   packet -> cipherLength = packet -> plainLength + SECUDP_NONCEBYTES + SECUDP_MACBYTES;
+   if(packet -> cipherLength < packet -> plainLength)
+     return -1;
+
+   /*
+    *  Encrypt the packet data. Special step not in ENet.
+    */
+   ciphertext = (secudp_uint8 *) secudp_malloc(packet -> cipherLength);
+   if(ciphertext == NULL)
+     return -1;
+   nonce = ciphertext + packet -> plainLength;
+   mac = nonce + SECUDP_NONCEBYTES;
+   secudp_peer_encrypt(ciphertext, mac, packet -> plaintext, packet -> plainLength, nonce, peer -> secret -> sessionPair.sendKey);
+   packet -> ciphertext = ciphertext;
 
    if (peer -> state != SECUDP_PEER_STATE_CONNECTED ||
        channelID >= peer -> channelCount ||
-       packet -> dataLength > peer -> host -> maximumPacketSize)
+       packet -> plainLength > peer -> host -> maximumPacketSize)
      return -1;
 
    fragmentLength = peer -> mtu - sizeof (SecUdpProtocolHeader) - sizeof (SecUdpProtocolSendFragment);
    if (peer -> host -> checksum != NULL)
      fragmentLength -= sizeof(secudp_uint32);
 
-   if (packet -> dataLength > fragmentLength)
+   if (packet -> cipherLength > fragmentLength)
    {
-      secudp_uint32 fragmentCount = (packet -> dataLength + fragmentLength - 1) / fragmentLength,
+      secudp_uint32 fragmentCount = (packet -> cipherLength + fragmentLength - 1) / fragmentLength,
              fragmentNumber,
              fragmentOffset;
       secudp_uint8 commandNumber;
@@ -141,12 +160,12 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
 
       for (fragmentNumber = 0,
              fragmentOffset = 0;
-           fragmentOffset < packet -> dataLength;
+           fragmentOffset < packet -> cipherLength;
            ++ fragmentNumber,
              fragmentOffset += fragmentLength)
       {
-         if (packet -> dataLength - fragmentOffset < fragmentLength)
-           fragmentLength = packet -> dataLength - fragmentOffset;
+         if (packet -> cipherLength - fragmentOffset < fragmentLength)
+           fragmentLength = packet -> cipherLength - fragmentOffset;
 
          fragment = (SecUdpOutgoingCommand *) secudp_malloc (sizeof (SecUdpOutgoingCommand));
          if (fragment == NULL)
@@ -170,7 +189,7 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
          fragment -> command.sendFragment.dataLength = SECUDP_HOST_TO_NET_16 (fragmentLength);
          fragment -> command.sendFragment.fragmentCount = SECUDP_HOST_TO_NET_32 (fragmentCount);
          fragment -> command.sendFragment.fragmentNumber = SECUDP_HOST_TO_NET_32 (fragmentNumber);
-         fragment -> command.sendFragment.totalLength = SECUDP_HOST_TO_NET_32 (packet -> dataLength);
+         fragment -> command.sendFragment.totalLength = SECUDP_HOST_TO_NET_32 (packet -> cipherLength);
          fragment -> command.sendFragment.fragmentOffset = SECUDP_NET_TO_HOST_32 (fragmentOffset);
         
          secudp_list_insert (secudp_list_end (& fragments), fragment);
@@ -193,21 +212,21 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
    if ((packet -> flags & (SECUDP_PACKET_FLAG_RELIABLE | SECUDP_PACKET_FLAG_UNSEQUENCED)) == SECUDP_PACKET_FLAG_UNSEQUENCED)
    {
       command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_UNSEQUENCED | SECUDP_PROTOCOL_COMMAND_FLAG_UNSEQUENCED;
-      command.sendUnsequenced.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.sendUnsequenced.dataLength = SECUDP_HOST_TO_NET_16 (packet -> cipherLength);
    }
    else 
    if (packet -> flags & SECUDP_PACKET_FLAG_RELIABLE || channel -> outgoingUnreliableSequenceNumber >= 0xFFFF)
    {
       command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_RELIABLE | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
-      command.sendReliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.sendReliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> cipherLength);
    }
    else
    {
       command.header.command = SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE;
-      command.sendUnreliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> dataLength);
+      command.sendUnreliable.dataLength = SECUDP_HOST_TO_NET_16 (packet -> cipherLength);
    }
 
-   if (secudp_peer_queue_outgoing_command (peer, & command, packet, 0, packet -> dataLength) == NULL)
+   if (secudp_peer_queue_outgoing_command (peer, & command, packet, 0, packet -> cipherLength) == NULL)
      return -1;
 
    return 0;
@@ -223,6 +242,12 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
 {
    SecUdpIncomingCommand * incomingCommand;
    SecUdpPacket * packet;
+   secudp_uint8 * plaintext;
+   secudp_uint8 * ciphertext;
+   size_t plainLength;
+   size_t cipherLength;
+   secudp_uint8 * mac;
+   secudp_uint8 * nonce;
    
    if (secudp_list_empty (& peer -> dispatchedCommands))
      return NULL;
@@ -241,8 +266,48 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
 
    secudp_free (incomingCommand);
 
-   peer -> totalWaitingData -= packet -> dataLength;
-
+   /*
+    *  One man's ciphertext is another's plaintext.
+    *  plaintext here is actually the ciphertext of the
+    *  sender, so decrypt that into ciphertext and do a swap
+    *  at the end.
+    */
+   if(packet -> plainLength < SECUDP_NONCEBYTES + SECUDP_MACBYTES)
+   {
+       secudp_packet_destroy(packet);
+       return NULL;
+   }
+   ciphertext = packet -> plaintext;
+   cipherLength = packet -> plainLength;
+   plainLength = cipherLength - SECUDP_NONCEBYTES - SECUDP_MACBYTES;
+   plaintext = secudp_malloc(plainLength);
+   if(plaintext == NULL)
+   {
+       secudp_packet_destroy(packet);
+       return NULL;
+   }
+   nonce = ciphertext + plainLength;
+   mac = nonce + SECUDP_NONCEBYTES;
+   
+   /*
+    *  Decrypt the data and return NULL if it's bad data. 
+    *  Special step not in ENet.
+    */
+   if(secudp_peer_decrypt(plaintext, ciphertext, mac, plainLength, nonce, peer -> secret -> sessionPair.recvKey))
+   {
+     printf("Failed decryption\n");
+       
+     secudp_packet_destroy(packet);
+     secudp_free(plaintext);
+     return NULL;
+   } 
+   
+   packet -> ciphertext = ciphertext;
+   packet -> plaintext = plaintext;
+   packet -> plainLength = plainLength;
+   packet -> cipherLength = cipherLength;
+   
+   peer -> totalWaitingData -= packet -> cipherLength;
    return packet;
 }
 
@@ -830,6 +895,8 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
     SecUdpIncomingCommand * incomingCommand;
     SecUdpListIterator currentCommand;
     SecUdpPacket * packet = NULL;
+    secudp_uint8 nonce[SECUDP_NONCEBYTES];
+    secudp_uint8 mac[SECUDP_MACBYTES];
 
     if (peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
       goto discardCommand;
@@ -965,7 +1032,7 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
     {
        ++ packet -> referenceCount;
       
-       peer -> totalWaitingData += packet -> dataLength;
+       peer -> totalWaitingData += packet -> cipherLength;
     }
 
     secudp_list_insert (secudp_list_next (currentCommand), incomingCommand);

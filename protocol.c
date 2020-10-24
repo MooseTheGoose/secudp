@@ -71,6 +71,10 @@ secudp_protocol_dispatch_incoming_commands (SecUdpHost * host, SecUdpEvent * eve
        case SECUDP_PEER_STATE_CONNECTION_SUCCEEDED:
            secudp_protocol_change_state (host, peer, SECUDP_PEER_STATE_CONNECTED);
 
+           /* 
+            *  TODO: Hold off on sending the connect event until after the peer
+            *        and host do the handshake.
+            */
            event -> type = SECUDP_EVENT_TYPE_CONNECT;
            event -> peer = peer;
            event -> data = peer -> eventData;
@@ -125,6 +129,10 @@ secudp_protocol_notify_connect (SecUdpHost * host, SecUdpPeer * peer, SecUdpEven
     {
         secudp_protocol_change_state (host, peer, SECUDP_PEER_STATE_CONNECTED);
 
+        /* 
+         *  TODO: Hold off on sending the connect event until after the peer
+         *        and host do the handshake.
+         */
         event -> type = SECUDP_EVENT_TYPE_CONNECT;
         event -> peer = peer;
         event -> data = peer -> eventData;
@@ -291,6 +299,7 @@ secudp_protocol_handle_connect (SecUdpHost * host, SecUdpProtocolHeader * header
     size_t channelCount, duplicatePeers = 0;
     SecUdpPeer * currentPeer, * peer = NULL;
     SecUdpProtocol verifyCommand;
+    SecUdpPeerSecret secret;
 
     channelCount = SECUDP_NET_TO_HOST_32 (command -> connect.channelCount);
 
@@ -327,6 +336,25 @@ secudp_protocol_handle_connect (SecUdpHost * host, SecUdpProtocolHeader * header
     peer -> channels = (SecUdpChannel *) secudp_malloc (channelCount * sizeof (SecUdpChannel));
     if (peer -> channels == NULL)
       return NULL;
+      
+    /*
+     *  Additionally generate a secret key pair for use
+     *  in key exchange. Extension of ENet.
+     */
+    peer -> secret = (SecUdpPeerSecret *) secudp_malloc (sizeof(SecUdpPeerSecret));
+    if (peer -> secret == NULL)
+    {
+        secudp_free(peer -> channels);
+        return NULL;
+    }
+    secudp_peer_gen_key_exchange_pair(peer -> secret -> kxPair.publicKx, peer -> secret -> kxPair.privateKx);
+    if(secudp_host_gen_session_keys(secret.sessionPair.sendKey, secret.sessionPair.recvKey, peer -> secret -> kxPair.publicKx, peer -> secret -> kxPair.privateKx, command -> connect.publicKx))
+    {
+        secudp_free(peer -> channels);
+        secudp_free(peer -> secret);
+        return NULL;
+    }
+    
     peer -> channelCount = channelCount;
     peer -> state = SECUDP_PEER_STATE_ACKNOWLEDGING_CONNECT;
     peer -> connectID = command -> connect.connectID;
@@ -426,6 +454,10 @@ secudp_protocol_handle_connect (SecUdpHost * host, SecUdpProtocolHeader * header
     verifyCommand.verifyConnect.packetThrottleAcceleration = SECUDP_HOST_TO_NET_32 (peer -> packetThrottleAcceleration);
     verifyCommand.verifyConnect.packetThrottleDeceleration = SECUDP_HOST_TO_NET_32 (peer -> packetThrottleDeceleration);
     verifyCommand.verifyConnect.connectID = peer -> connectID;
+    memcpy(verifyCommand.verifyConnect.publicKx, peer -> secret -> kxPair.publicKx, SECUDP_KX_PUBLICBYTES);
+    secudp_host_generate_signature(verifyCommand.verifyConnect.signature, verifyCommand.verifyConnect.publicKx, SECUDP_KX_PUBLICBYTES, host -> secret -> privateKey);
+    memcpy(peer -> secret -> sessionPair.sendKey, secret.sessionPair.sendKey, SECUDP_SESSIONKEYBYTES);
+    memcpy(peer -> secret -> sessionPair.recvKey, secret.sessionPair.recvKey, SECUDP_SESSIONKEYBYTES);
 
     secudp_peer_queue_outgoing_command (peer, & verifyCommand, NULL, 0, 0);
 
@@ -591,7 +623,7 @@ secudp_protocol_handle_send_fragment (SecUdpHost * host, SecUdpPeer * peer, cons
             break;
         
           if ((incomingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK) != SECUDP_PROTOCOL_COMMAND_SEND_FRAGMENT ||
-              totalLength != incomingCommand -> packet -> dataLength ||
+              totalLength != incomingCommand -> packet -> plainLength ||
               fragmentCount != incomingCommand -> fragmentCount)
             return -1;
 
@@ -617,10 +649,10 @@ secudp_protocol_handle_send_fragment (SecUdpHost * host, SecUdpPeer * peer, cons
 
        startCommand -> fragments [fragmentNumber / 32] |= (1 << (fragmentNumber % 32));
 
-       if (fragmentOffset + fragmentLength > startCommand -> packet -> dataLength)
-         fragmentLength = startCommand -> packet -> dataLength - fragmentOffset;
+       if (fragmentOffset + fragmentLength > startCommand -> packet -> plainLength)
+         fragmentLength = startCommand -> packet -> plainLength - fragmentOffset;
 
-       memcpy (startCommand -> packet -> data + fragmentOffset,
+       memcpy (startCommand -> packet -> plaintext + fragmentOffset,
                (secudp_uint8 *) command + sizeof (SecUdpProtocolSendFragment),
                fragmentLength);
 
@@ -713,7 +745,7 @@ secudp_protocol_handle_send_unreliable_fragment (SecUdpHost * host, SecUdpPeer *
             break;
 
           if ((incomingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK) != SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT ||
-              totalLength != incomingCommand -> packet -> dataLength ||
+              totalLength != incomingCommand -> packet -> plainLength ||
               fragmentCount != incomingCommand -> fragmentCount)
             return -1;
 
@@ -735,10 +767,10 @@ secudp_protocol_handle_send_unreliable_fragment (SecUdpHost * host, SecUdpPeer *
 
        startCommand -> fragments [fragmentNumber / 32] |= (1 << (fragmentNumber % 32));
 
-       if (fragmentOffset + fragmentLength > startCommand -> packet -> dataLength)
-         fragmentLength = startCommand -> packet -> dataLength - fragmentOffset;
+       if (fragmentOffset + fragmentLength > startCommand -> packet -> plainLength)
+         fragmentLength = startCommand -> packet -> plainLength - fragmentOffset;
 
-       memcpy (startCommand -> packet -> data + fragmentOffset,
+       memcpy (startCommand -> packet -> plaintext + fragmentOffset,
                (secudp_uint8 *) command + sizeof (SecUdpProtocolSendFragment),
                fragmentLength);
 
@@ -812,6 +844,11 @@ secudp_protocol_handle_disconnect (SecUdpHost * host, SecUdpPeer * peer, const S
       return 0;
 
     secudp_peer_reset_queues (peer);
+    if(peer -> secret != NULL)
+    {
+        secudp_free(peer -> secret);
+        peer -> secret = NULL;
+    }
 
     if (peer -> state == SECUDP_PEER_STATE_CONNECTION_SUCCEEDED || peer -> state == SECUDP_PEER_STATE_DISCONNECTING || peer -> state == SECUDP_PEER_STATE_CONNECTING)
         secudp_protocol_dispatch_state (host, peer, SECUDP_PEER_STATE_ZOMBIE);
@@ -938,25 +975,33 @@ secudp_protocol_handle_verify_connect (SecUdpHost * host, SecUdpEvent * event, S
 {
     secudp_uint32 mtu, windowSize;
     size_t channelCount;
+    SecUdpPeerSecret secret;
 
     if (peer -> state != SECUDP_PEER_STATE_CONNECTING)
       return 0;
 
     channelCount = SECUDP_NET_TO_HOST_32 (command -> verifyConnect.channelCount);
 
+    /*
+     *  Additionally check if session keys can be generated from the secret key
+     *  exchange pair and the public key received. Extension of ENet.
+     */
     if (channelCount < SECUDP_PROTOCOL_MINIMUM_CHANNEL_COUNT || channelCount > SECUDP_PROTOCOL_MAXIMUM_CHANNEL_COUNT ||
         SECUDP_NET_TO_HOST_32 (command -> verifyConnect.packetThrottleInterval) != peer -> packetThrottleInterval ||
         SECUDP_NET_TO_HOST_32 (command -> verifyConnect.packetThrottleAcceleration) != peer -> packetThrottleAcceleration ||
         SECUDP_NET_TO_HOST_32 (command -> verifyConnect.packetThrottleDeceleration) != peer -> packetThrottleDeceleration ||
-        command -> verifyConnect.connectID != peer -> connectID)
+        command -> verifyConnect.connectID != peer -> connectID || 
+        secudp_peer_gen_session_keys(secret.sessionPair.sendKey, secret.sessionPair.recvKey, peer -> secret -> kxPair.publicKx, peer -> secret -> kxPair.privateKx, command -> verifyConnect.publicKx) ||
+        secudp_host_verify_signature(command -> verifyConnect.signature, command -> verifyConnect.publicKx, SECUDP_KX_PUBLICBYTES, host -> secret -> publicKey))
     {
         peer -> eventData = 0;
-
         secudp_protocol_dispatch_state (host, peer, SECUDP_PEER_STATE_ZOMBIE);
 
         return -1;
     }
 
+    memcpy(peer -> secret -> sessionPair.sendKey, secret.sessionPair.sendKey, SECUDP_SESSIONKEYBYTES);
+    memcpy(peer -> secret -> sessionPair.recvKey, secret.sessionPair.recvKey, SECUDP_SESSIONKEYBYTES);
     secudp_protocol_remove_sent_reliable_command (peer, 1, 0xFF);
     
     if (channelCount < peer -> channelCount)
@@ -992,6 +1037,7 @@ secudp_protocol_handle_verify_connect (SecUdpHost * host, SecUdpEvent * event, S
     peer -> outgoingBandwidth = SECUDP_NET_TO_HOST_32 (command -> verifyConnect.outgoingBandwidth);
 
     secudp_protocol_notify_connect (host, peer, event);
+
     return 0;
 }
 
@@ -1537,7 +1583,7 @@ secudp_protocol_check_outgoing_commands (SecUdpHost * host, SecUdpPeer * peer)
        {
           ++ buffer;
           
-          buffer -> data = outgoingCommand -> packet -> data + outgoingCommand -> fragmentOffset;
+          buffer -> data = outgoingCommand -> packet -> ciphertext + outgoingCommand -> fragmentOffset;
           buffer -> dataLength = outgoingCommand -> fragmentLength;
 
           host -> packetSize += outgoingCommand -> fragmentLength;

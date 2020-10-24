@@ -365,7 +365,8 @@ secudpinclude_HEADERS = \
 	include/secudp/types.h \
 	include/secudp/unix.h \
 	include/secudp/utility.h \
-	include/secudp/win32.h
+	include/secudp/win32.h \
+	include/secudp/crypto.h
 
 lib_LTLIBRARIES = libsecudp.la
 libsecudp_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c crypto.c

@@ -6,6 +6,7 @@
 #define __SECUDP_PROTOCOL_H__
 
 #include "secudp/types.h"
+#include "secudp/crypto.h"
 
 enum
 {
@@ -35,9 +36,7 @@ typedef enum _SecUdpProtocolCommand
    SECUDP_PROTOCOL_COMMAND_BANDWIDTH_LIMIT    = 10,
    SECUDP_PROTOCOL_COMMAND_THROTTLE_CONFIGURE = 11,
    SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT = 12,
-   SECUDP_PROTOCOL_COMMAND_PEER_HELL0         = 13,
-   SECUDP_PROTOCOL_COMMAND_HOST_HELLO         = 14,
-   SECUDP_PROTOCOL_COMMAND_COUNT              = 15,
+   SECUDP_PROTOCOL_COMMAND_COUNT              = 13,
    SECUDP_PROTOCOL_COMMAND_MASK               = 0x0F
 } SecUdpProtocolCommand;
 
@@ -99,6 +98,12 @@ typedef struct _SecUdpProtocolConnect
    secudp_uint32 packetThrottleDeceleration;
    secudp_uint32 connectID;
    secudp_uint32 data;
+   
+   /*
+    *  The one trying to connect will send over
+    *  a public key. Addition to ENet Connect
+    */
+   secudp_uint8 publicKx[SECUDP_KX_PUBLICBYTES];
 } SECUDP_PACKED SecUdpProtocolConnect;
 
 typedef struct _SecUdpProtocolVerifyConnect
@@ -116,6 +121,15 @@ typedef struct _SecUdpProtocolVerifyConnect
    secudp_uint32 packetThrottleAcceleration;
    secudp_uint32 packetThrottleDeceleration;
    secudp_uint32 connectID;
+   
+   /*
+    *  The one verifying the connect will store
+    *  public key here. If generating session pair
+    *  goes bad, don't send a verify connect.
+    *  Additionally, slap the signature on there.
+    */
+   secudp_uint8 publicKx[SECUDP_KX_PUBLICBYTES]; 
+   secudp_uint8 signature[SECUDP_SIGN_BYTES];
 } SECUDP_PACKED SecUdpProtocolVerifyConnect;
 
 typedef struct _SecUdpProtocolBandwidthLimit
@@ -175,23 +189,6 @@ typedef struct _SecUdpProtocolSendFragment
    secudp_uint32 fragmentOffset;
 } SECUDP_PACKED SecUdpProtocolSendFragment;
 
-typedef struct _SecUdpProtocolPeerHello {
-  SecUdpProtocolCommandHeader header;
-  /* 
-   * Send reliable packet with public MAC
-   * and ChaCha variables.
-   */
-} SecUdpProtocolPeerHello;
-
-typedef struct _SecUdpProtocolHostHello {
-  SecUdpProtocolCommandHeader header;
-  /*
-   *  Send reliable packet with public MAC
-   *  and ChaCha variables, as well as
-   *  an EdDSA signature. 
-   */
-} SecUdpProtocolHostHello;
-
 typedef union _SecUdpProtocol
 {
    SecUdpProtocolCommandHeader header;
@@ -206,8 +203,6 @@ typedef union _SecUdpProtocol
    SecUdpProtocolSendFragment sendFragment;
    SecUdpProtocolBandwidthLimit bandwidthLimit;
    SecUdpProtocolThrottleConfigure throttleConfigure;
-   SecUdpProtocolPeerHello peerHello;
-   SecUdpProtocolHostHello hostHello;
 } SECUDP_PACKED SecUdpProtocol;
 
 

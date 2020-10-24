@@ -10,7 +10,7 @@ static SecUdpCallbacks callbacks = { malloc, free, abort };
 int
 secudp_initialize_with_callbacks (SecUdpVersion version, const SecUdpCallbacks * inits)
 {
-   if (version < SECUDP_VERSION_CREATE (1, 3, 0))
+   if (version < SECUDP_VERSION_CREATE (1, 0, 0))
      return -1;
 
    if (inits -> malloc != NULL || inits -> free != NULL)

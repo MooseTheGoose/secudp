@@ -5,6 +5,7 @@
 #define SECUDP_BUILDING_LIB 1
 #include <string.h>
 #include "secudp/secudp.h"
+#include "secudp/crypto.h"
 
 /** @defgroup host SecUdp host functions
     @{
@@ -38,21 +39,20 @@ secudp_host_create (const SecUdpAddress * address, const SecUdpHostSecret * secr
     if (host == NULL)
       return NULL;
     memset (host, 0, sizeof (SecUdpHost));
-
-    host->secret = (SecUdpHostSecret *) secudp_malloc(sizeof(SecUdpHostSecret));
-    if(host->secret == NULL) 
+    
+    host -> secret = (SecUdpHostSecret *) secudp_malloc(sizeof(SecUdpHostSecret));
+    if(host -> secret == NULL) 
     {
-      secudp_free(host);
-      return NULL;
+        secudp_free(host);
+        return NULL;
     }
-    memcpy(host->secret, secret, sizeof(SecUdpHostSecret));
+    memcpy(host -> secret, secret, sizeof(SecUdpHostSecret));
 
     host -> peers = (SecUdpPeer *) secudp_malloc (peerCount * sizeof (SecUdpPeer));
     if (host -> peers == NULL)
     {
-       secudp_free (host->secret);
        secudp_free (host);
-
+       secudp_free (host -> secret);
        return NULL;
     }
     memset (host -> peers, 0, peerCount * sizeof (SecUdpPeer));
@@ -64,7 +64,7 @@ secudp_host_create (const SecUdpAddress * address, const SecUdpHostSecret * secr
          secudp_socket_destroy (host -> socket);
 
        secudp_free (host -> peers);
-       secudp_free (host->secret);
+       secudp_free (host -> secret);
        secudp_free (host);
 
        return NULL;
@@ -207,6 +207,12 @@ secudp_host_connect (SecUdpHost * host, const SecUdpAddress * address, size_t ch
     currentPeer -> channels = (SecUdpChannel *) secudp_malloc (channelCount * sizeof (SecUdpChannel));
     if (currentPeer -> channels == NULL)
       return NULL;
+    currentPeer -> secret = (SecUdpPeerSecret *) secudp_malloc(sizeof(SecUdpPeerSecret));
+    if(currentPeer -> secret == NULL)
+    {
+        secudp_free(currentPeer -> channels);
+        return NULL;
+    }
     currentPeer -> channelCount = channelCount;
     currentPeer -> state = SECUDP_PEER_STATE_CONNECTING;
     currentPeer -> address = * address;
@@ -240,7 +246,9 @@ secudp_host_connect (SecUdpHost * host, const SecUdpAddress * address, size_t ch
         channel -> usedReliableWindows = 0;
         memset (channel -> reliableWindows, 0, sizeof (channel -> reliableWindows));
     }
-        
+    
+    secudp_peer_gen_key_exchange_pair(currentPeer -> secret -> kxPair.publicKx, currentPeer -> secret -> kxPair.privateKx);
+    
     command.header.command = SECUDP_PROTOCOL_COMMAND_CONNECT | SECUDP_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE;
     command.header.channelID = 0xFF;
     command.connect.outgoingPeerID = SECUDP_HOST_TO_NET_16 (currentPeer -> incomingPeerID);
@@ -256,6 +264,7 @@ secudp_host_connect (SecUdpHost * host, const SecUdpAddress * address, size_t ch
     command.connect.packetThrottleDeceleration = SECUDP_HOST_TO_NET_32 (currentPeer -> packetThrottleDeceleration);
     command.connect.connectID = currentPeer -> connectID;
     command.connect.data = SECUDP_HOST_TO_NET_32 (data);
+    memcpy(command.connect.publicKx, currentPeer -> secret -> kxPair.publicKx, SECUDP_KX_PUBLICBYTES);
  
     secudp_peer_queue_outgoing_command (currentPeer, & command, NULL, 0, 0);
 

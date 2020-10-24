@@ -5,6 +5,7 @@
 #include <string.h>
 #define SECUDP_BUILDING_LIB 1
 #include "secudp/secudp.h"
+#include "secudp/crypto.h"
 
 /** @defgroup Packet SecUdp packet functions 
     @{ 
@@ -19,31 +20,34 @@
 SecUdpPacket *
 secudp_packet_create (const void * data, size_t dataLength, secudp_uint32 flags)
 {
-    SecUdpPacket * packet = (SecUdpPacket *) secudp_malloc (sizeof (SecUdpPacket));
+    SecUdpPacket * packet;
+    
+    packet = (SecUdpPacket *) secudp_malloc (sizeof (SecUdpPacket));
     if (packet == NULL)
       return NULL;
 
     if (flags & SECUDP_PACKET_FLAG_NO_ALLOCATE)
-      packet -> data = (secudp_uint8 *) data;
+      packet -> plaintext = (secudp_uint8 *) data;
     else
     if (dataLength <= 0)
-      packet -> data = NULL;
+      packet -> plaintext = NULL;
     else
     {
-       packet -> data = (secudp_uint8 *) secudp_malloc (dataLength);
-       if (packet -> data == NULL)
+       packet -> plaintext = (secudp_uint8 *) secudp_malloc (dataLength);
+       if (packet -> plaintext == NULL)
        {
           secudp_free (packet);
           return NULL;
        }
 
        if (data != NULL)
-         memcpy (packet -> data, data, dataLength);
+         memcpy (packet -> plaintext, data, dataLength);
     }
 
     packet -> referenceCount = 0;
     packet -> flags = flags;
-    packet -> dataLength = dataLength;
+    packet -> plainLength = dataLength;
+    packet -> ciphertext = NULL;
     packet -> freeCallback = NULL;
     packet -> userData = NULL;
 
@@ -62,8 +66,10 @@ secudp_packet_destroy (SecUdpPacket * packet)
     if (packet -> freeCallback != NULL)
       (* packet -> freeCallback) (packet);
     if (! (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE) &&
-        packet -> data != NULL)
-      secudp_free (packet -> data);
+        packet -> plaintext != NULL)
+      secudp_free (packet -> plaintext);
+    if(packet -> ciphertext != NULL)
+      secudp_free(packet -> ciphertext);
     secudp_free (packet);
 }
 
@@ -78,9 +84,9 @@ secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
 {
     secudp_uint8 * newData;
    
-    if (dataLength <= packet -> dataLength || (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE))
+    if (dataLength <= packet -> plainLength || (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE))
     {
-       packet -> dataLength = dataLength;
+       packet -> plainLength = dataLength;
 
        return 0;
     }
@@ -89,11 +95,11 @@ secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
     if (newData == NULL)
       return -1;
 
-    memcpy (newData, packet -> data, packet -> dataLength);
-    secudp_free (packet -> data);
+    memcpy (newData, packet -> plaintext, packet -> plainLength);
+    secudp_free (packet -> plaintext);
     
-    packet -> data = newData;
-    packet -> dataLength = dataLength;
+    packet -> plaintext = newData;
+    packet -> plainLength = dataLength;
 
     return 0;
 }

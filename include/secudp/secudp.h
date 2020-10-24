@@ -22,6 +22,7 @@ extern "C"
 #include "secudp/protocol.h"
 #include "secudp/list.h"
 #include "secudp/callbacks.h"
+#include "secudp/crypto.h"
 
 #define SECUDP_VERSION_MAJOR 1
 #define SECUDP_VERSION_MINOR 0 
@@ -138,6 +139,7 @@ typedef void (SECUDP_CALLBACK * SecUdpPacketFreeCallback) (struct _SecUdpPacket 
  *    (not supported for reliable packets)
  *
  *    SECUDP_PACKET_FLAG_NO_ALLOCATE - packet will not allocate data, and user must supply it instead
+ *    (yes, that includes space for the nonce and the mac).
  *
  *    SECUDP_PACKET_FLAG_UNRELIABLE_FRAGMENT - packet will be fragmented using unreliable
  *    (instead of reliable) sends if it exceeds the MTU
@@ -149,10 +151,19 @@ typedef struct _SecUdpPacket
 {
    size_t                   referenceCount;  /**< internal use only */
    secudp_uint32              flags;           /**< bitwise-or of SecUdpPacketFlag constants */
-   secudp_uint8 *             data;            /**< allocated data for packet */
-   size_t                   dataLength;      /**< length of data */
+   secudp_uint8 *             _data;            /**< allocated data for packet */
+   size_t                   _dataLength;      /**< length of data */
    SecUdpPacketFreeCallback   freeCallback;    /**< function to be called when the packet is no longer in use */
    void *                   userData;        /**< application private data, may be freely modified */
+   
+   /*
+    *  Ciphertext contains encrypted data.
+    *  Addition to ENet.
+    */
+   size_t cipherLength;
+   size_t plainLength;
+   secudp_uint8 *ciphertext;
+   secudp_uint8 *plaintext;
 } SecUdpPacket;
 
 typedef struct _SecUdpAcknowledgement
@@ -255,9 +266,17 @@ typedef enum _SecUdpPeerFlag
    SECUDP_PEER_FLAG_NEEDS_DISPATCH = (1 << 0)
 } SecUdpPeerFlag;
 
-typedef struct _SecUdpPeerSecret {
-  secudp_uint32 mac_key[8];
-  secudp_uint32 chacha_key[8];
+typedef union _SecUdpPeerSecret {
+  struct
+  {
+    secudp_uint8 sendKey[SECUDP_SESSIONKEYBYTES];
+    secudp_uint8 recvKey[SECUDP_SESSIONKEYBYTES];
+  } sessionPair;
+  struct
+  {
+    secudp_uint8 privateKx[SECUDP_KX_PRIVATEBYTES];
+    secudp_uint8 publicKx[SECUDP_KX_PUBLICBYTES];
+  } kxPair;
 } SecUdpPeerSecret;
 
 /**
@@ -328,6 +347,10 @@ typedef struct _SecUdpPeer
    secudp_uint32   eventData;
    size_t        totalWaitingData;
 
+   /*
+    *  An addition to ENetPeer which stores secret values
+    *  such as private key exchange variable and session keys.
+    */
    SecUdpPeerSecret *secret;
 } SecUdpPeer;
 
@@ -352,8 +375,8 @@ typedef secudp_uint32 (SECUDP_CALLBACK * SecUdpChecksumCallback) (const SecUdpBu
 typedef int (SECUDP_CALLBACK * SecUdpInterceptCallback) (struct _SecUdpHost * host, struct _SecUdpEvent * event);
 
 typedef struct _SecUdpHostSecret {
-  secudp_uint32 privateKey[8];
-  secudp_uint32 publicKey[8];
+  secudp_uint8 privateKey[SECUDP_SIGN_PRIVATEBYTES];
+  secudp_uint8 publicKey[SECUDP_SIGN_PUBLICBYTES];
 } SecUdpHostSecret;
 
 /** An SecUdp host for communicating with peers.
@@ -411,6 +434,10 @@ typedef struct _SecUdpHost
    size_t               maximumPacketSize;           /**< the maximum allowable packet size that may be sent or received on a peer */
    size_t               maximumWaitingData;          /**< the maximum aggregate amount of buffer space a peer may use waiting for packets to be delivered */
 
+   /*
+    *  An addition to the ENet host which stores
+    *  public key and private key.
+    */
    SecUdpHostSecret *secret;
 } SecUdpHost;
 
