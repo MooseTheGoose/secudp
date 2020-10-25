@@ -8,3 +8,4 @@ Description: ENet with Security
 Version: @PACKAGE_VERSION@
 Cflags: -I${includedir}
 Libs: -L${libdir} -lsecudp
+

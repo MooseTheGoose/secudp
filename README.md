@@ -10,17 +10,26 @@ into the protocol. The best part is that this is
 completely transparent except for some instantiation
 details.
 
+# Dependencies
+
+* libsodium (signatures, key exchange, secret-key cryptography)
+
+# Installation instructions
+
+* UNIX
+
+Run the following commands
+
+$ autoreconf (or autoconf, if that doesn't work)
+$ ./configure
+$ make
+$ sudo make install
+
+* Windows
+
+I still need to figure that out. 
+
 # TODO
 
-* Read up on ENet source code enough to find out how
-  to incorporate encryption seamlessly into the protocol
-
-* Update licenses so that it adequately gives credit to
-  Lee Salzmann for providing an amazing starting point.
-
-* Find out how to include libsodium source and build process
-  into secudp so that I can use that instead of handmaking
-  cryptographic functions. Also reference libsodium in
-  the license.
-
+* Find out how to build the project on Windows.
 

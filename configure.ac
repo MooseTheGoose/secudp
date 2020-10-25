@@ -1,5 +1,6 @@
 AC_INIT([secudp], [1.0.0])
 AC_CONFIG_SRCDIR([include/secudp/secudp.h])
+AC_CONFIG_SUBDIRS([libsodium])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_CONFIG_MACRO_DIR([m4])

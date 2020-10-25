@@ -14,8 +14,10 @@ secudpinclude_HEADERS = \
 	include/secudp/win32.h \
 	include/secudp/crypto.h
 
+SUBDIRS = libsodium
 lib_LTLIBRARIES = libsecudp.la
 libsecudp_la_SOURCES = callbacks.c compress.c host.c list.c packet.c peer.c protocol.c unix.c win32.c crypto.c
+libsecudp_la_LIBADD = $(top_builddir)/libsodium/src/libsodium/libsodium.la
 # see info '(libtool) Updating version info' before making a release
 libsecudp_la_LDFLAGS = $(AM_LDFLAGS) -version-info 7:4:0
 AM_CPPFLAGS = -I$(top_srcdir)/include
