@@ -27,9 +27,9 @@ $ sudo make install
 
 * Windows
 
-I still need to figure that out. 
-
-# TODO
-
-* Find out how to build the project on Windows.
+Open "secudp.vcxproj" in Visual Studio and select Build - Build Solution.
+The library will then be installed in Debug\ as "secudp.lib". You can include
+this file in your project along with the libsodium and secudp header files.
+You must also link against ws2_32.lib and winmm.lib for any projects using
+this library.
 

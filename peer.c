@@ -896,8 +896,6 @@ secudp_peer_queue_incoming_command (SecUdpPeer * peer, const SecUdpProtocol * co
     SecUdpIncomingCommand * incomingCommand;
     SecUdpListIterator currentCommand;
     SecUdpPacket * packet = NULL;
-    secudp_uint8 nonce[SECUDP_NONCEBYTES];
-    secudp_uint8 mac[SECUDP_MACBYTES];
 
     if (peer -> state == SECUDP_PEER_STATE_DISCONNECT_LATER)
       goto discardCommand;
