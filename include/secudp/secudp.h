@@ -151,8 +151,8 @@ typedef struct _SecUdpPacket
 {
    size_t                   referenceCount;  /**< internal use only */
    secudp_uint32              flags;           /**< bitwise-or of SecUdpPacketFlag constants */
-   secudp_uint8 *             _data;            /**< allocated data for packet */
-   size_t                   _dataLength;      /**< length of data */
+   secudp_uint8 *             data;            /**< allocated data for packet */
+   size_t                   dataLength;      /**< length of data */
    SecUdpPacketFreeCallback   freeCallback;    /**< function to be called when the packet is no longer in use */
    void *                   userData;        /**< application private data, may be freely modified */
    
@@ -160,10 +160,8 @@ typedef struct _SecUdpPacket
     *  Ciphertext contains encrypted data.
     *  Addition to ENet.
     */
-   size_t cipherLength;
-   size_t plainLength;
    secudp_uint8 *ciphertext;
-   secudp_uint8 *plaintext;
+   size_t cipherLength;
 } SecUdpPacket;
 
 typedef struct _SecUdpAcknowledgement

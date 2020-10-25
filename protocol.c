@@ -623,7 +623,7 @@ secudp_protocol_handle_send_fragment (SecUdpHost * host, SecUdpPeer * peer, cons
             break;
         
           if ((incomingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK) != SECUDP_PROTOCOL_COMMAND_SEND_FRAGMENT ||
-              totalLength != incomingCommand -> packet -> plainLength ||
+              totalLength != incomingCommand -> packet -> dataLength ||
               fragmentCount != incomingCommand -> fragmentCount)
             return -1;
 
@@ -649,10 +649,10 @@ secudp_protocol_handle_send_fragment (SecUdpHost * host, SecUdpPeer * peer, cons
 
        startCommand -> fragments [fragmentNumber / 32] |= (1 << (fragmentNumber % 32));
 
-       if (fragmentOffset + fragmentLength > startCommand -> packet -> plainLength)
-         fragmentLength = startCommand -> packet -> plainLength - fragmentOffset;
+       if (fragmentOffset + fragmentLength > startCommand -> packet -> dataLength)
+         fragmentLength = startCommand -> packet -> dataLength - fragmentOffset;
 
-       memcpy (startCommand -> packet -> plaintext + fragmentOffset,
+       memcpy (startCommand -> packet -> data + fragmentOffset,
                (secudp_uint8 *) command + sizeof (SecUdpProtocolSendFragment),
                fragmentLength);
 
@@ -745,7 +745,7 @@ secudp_protocol_handle_send_unreliable_fragment (SecUdpHost * host, SecUdpPeer *
             break;
 
           if ((incomingCommand -> command.header.command & SECUDP_PROTOCOL_COMMAND_MASK) != SECUDP_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT ||
-              totalLength != incomingCommand -> packet -> plainLength ||
+              totalLength != incomingCommand -> packet -> dataLength ||
               fragmentCount != incomingCommand -> fragmentCount)
             return -1;
 
@@ -767,10 +767,10 @@ secudp_protocol_handle_send_unreliable_fragment (SecUdpHost * host, SecUdpPeer *
 
        startCommand -> fragments [fragmentNumber / 32] |= (1 << (fragmentNumber % 32));
 
-       if (fragmentOffset + fragmentLength > startCommand -> packet -> plainLength)
-         fragmentLength = startCommand -> packet -> plainLength - fragmentOffset;
+       if (fragmentOffset + fragmentLength > startCommand -> packet -> dataLength)
+         fragmentLength = startCommand -> packet -> dataLength - fragmentOffset;
 
-       memcpy (startCommand -> packet -> plaintext + fragmentOffset,
+       memcpy (startCommand -> packet -> data + fragmentOffset,
                (secudp_uint8 *) command + sizeof (SecUdpProtocolSendFragment),
                fragmentLength);
 

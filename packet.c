@@ -27,26 +27,26 @@ secudp_packet_create (const void * data, size_t dataLength, secudp_uint32 flags)
       return NULL;
 
     if (flags & SECUDP_PACKET_FLAG_NO_ALLOCATE)
-      packet -> plaintext = (secudp_uint8 *) data;
+      packet -> data = (secudp_uint8 *) data;
     else
     if (dataLength <= 0)
-      packet -> plaintext = NULL;
+      packet -> data = NULL;
     else
     {
-       packet -> plaintext = (secudp_uint8 *) secudp_malloc (dataLength);
-       if (packet -> plaintext == NULL)
+       packet -> data = (secudp_uint8 *) secudp_malloc (dataLength);
+       if (packet -> data == NULL)
        {
           secudp_free (packet);
           return NULL;
        }
 
        if (data != NULL)
-         memcpy (packet -> plaintext, data, dataLength);
+         memcpy (packet -> data, data, dataLength);
     }
 
     packet -> referenceCount = 0;
     packet -> flags = flags;
-    packet -> plainLength = dataLength;
+    packet -> dataLength = dataLength;
     packet -> ciphertext = NULL;
     packet -> freeCallback = NULL;
     packet -> userData = NULL;
@@ -66,8 +66,8 @@ secudp_packet_destroy (SecUdpPacket * packet)
     if (packet -> freeCallback != NULL)
       (* packet -> freeCallback) (packet);
     if (! (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE) &&
-        packet -> plaintext != NULL)
-      secudp_free (packet -> plaintext);
+        packet -> data != NULL)
+      secudp_free (packet -> data);
     if(packet -> ciphertext != NULL)
       secudp_free(packet -> ciphertext);
     secudp_free (packet);
@@ -84,9 +84,9 @@ secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
 {
     secudp_uint8 * newData;
    
-    if (dataLength <= packet -> plainLength || (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE))
+    if (dataLength <= packet -> dataLength || (packet -> flags & SECUDP_PACKET_FLAG_NO_ALLOCATE))
     {
-       packet -> plainLength = dataLength;
+       packet -> dataLength = dataLength;
 
        return 0;
     }
@@ -95,11 +95,11 @@ secudp_packet_resize (SecUdpPacket * packet, size_t dataLength)
     if (newData == NULL)
       return -1;
 
-    memcpy (newData, packet -> plaintext, packet -> plainLength);
-    secudp_free (packet -> plaintext);
+    memcpy (newData, packet -> data, packet -> dataLength);
+    secudp_free (packet -> data);
     
-    packet -> plaintext = newData;
-    packet -> plainLength = dataLength;
+    packet -> data = newData;
+    packet -> dataLength = dataLength;
 
     return 0;
 }

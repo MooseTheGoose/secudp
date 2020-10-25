@@ -18,9 +18,9 @@ void secudp_sign_keypair(void *pubKey, void *privKey)
 
 /*
  *  Encrypt message. This always succeeds.
+ *  Note that nonce is an in parameter.
  */
 void secudp_peer_encrypt(void *ciphertext, void *mac, const void *message, size_t len, void *nonce, const void *key) {
-  secudp_random(nonce, SECUDP_NONCEBYTES);
   crypto_secretbox_detached(ciphertext, mac, message, len, nonce, key);
 }
 

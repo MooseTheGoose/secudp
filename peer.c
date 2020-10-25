@@ -107,8 +107,8 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
    secudp_uint8 *nonce;
    secudp_uint8 *mac;
 
-   packet -> cipherLength = packet -> plainLength + SECUDP_NONCEBYTES + SECUDP_MACBYTES;
-   if(packet -> cipherLength < packet -> plainLength)
+   packet -> cipherLength = packet -> dataLength + SECUDP_NONCEBYTES + SECUDP_MACBYTES;
+   if(packet -> cipherLength < packet -> dataLength)
      return -1;
 
    /*
@@ -117,14 +117,15 @@ secudp_peer_send (SecUdpPeer * peer, secudp_uint8 channelID, SecUdpPacket * pack
    ciphertext = (secudp_uint8 *) secudp_malloc(packet -> cipherLength);
    if(ciphertext == NULL)
      return -1;
-   nonce = ciphertext + packet -> plainLength;
+   nonce = ciphertext + packet -> dataLength;
    mac = nonce + SECUDP_NONCEBYTES;
-   secudp_peer_encrypt(ciphertext, mac, packet -> plaintext, packet -> plainLength, nonce, peer -> secret -> sessionPair.sendKey);
+   secudp_random(nonce, SECUDP_NONCEBYTES);
+   secudp_peer_encrypt(ciphertext, mac, packet -> data, packet -> dataLength, nonce, peer -> secret -> sessionPair.sendKey);
    packet -> ciphertext = ciphertext;
 
    if (peer -> state != SECUDP_PEER_STATE_CONNECTED ||
        channelID >= peer -> channelCount ||
-       packet -> plainLength > peer -> host -> maximumPacketSize)
+       packet -> dataLength > peer -> host -> maximumPacketSize)
      return -1;
 
    fragmentLength = peer -> mtu - sizeof (SecUdpProtocolHeader) - sizeof (SecUdpProtocolSendFragment);
@@ -242,9 +243,9 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
 {
    SecUdpIncomingCommand * incomingCommand;
    SecUdpPacket * packet;
-   secudp_uint8 * plaintext;
+   secudp_uint8 * data;
    secudp_uint8 * ciphertext;
-   size_t plainLength;
+   size_t dataLength;
    size_t cipherLength;
    secudp_uint8 * mac;
    secudp_uint8 * nonce;
@@ -267,44 +268,44 @@ secudp_peer_receive (SecUdpPeer * peer, secudp_uint8 * channelID)
    secudp_free (incomingCommand);
 
    /*
-    *  One man's ciphertext is another's plaintext.
-    *  plaintext here is actually the ciphertext of the
-    *  sender, so decrypt that into ciphertext and do a swap
-    *  at the end.
+    *  One man's ciphertext is another's data.
+    *  data here is actually the ciphertext of the
+    *  sender, so decrypt that into ciphertext and 
+    *  do a swap.
     */
-   if(packet -> plainLength < SECUDP_NONCEBYTES + SECUDP_MACBYTES)
+   if(packet -> dataLength < SECUDP_NONCEBYTES + SECUDP_MACBYTES)
    {
        secudp_packet_destroy(packet);
        return NULL;
    }
-   ciphertext = packet -> plaintext;
-   cipherLength = packet -> plainLength;
-   plainLength = cipherLength - SECUDP_NONCEBYTES - SECUDP_MACBYTES;
-   plaintext = secudp_malloc(plainLength);
-   if(plaintext == NULL)
+   ciphertext = packet -> data;
+   cipherLength = packet -> dataLength;
+   dataLength = cipherLength - SECUDP_NONCEBYTES - SECUDP_MACBYTES;
+   data = secudp_malloc(dataLength);
+   if(data == NULL)
    {
        secudp_packet_destroy(packet);
        return NULL;
    }
-   nonce = ciphertext + plainLength;
+   nonce = ciphertext + dataLength;
    mac = nonce + SECUDP_NONCEBYTES;
    
    /*
     *  Decrypt the data and return NULL if it's bad data. 
     *  Special step not in ENet.
     */
-   if(secudp_peer_decrypt(plaintext, ciphertext, mac, plainLength, nonce, peer -> secret -> sessionPair.recvKey))
+   if(secudp_peer_decrypt(data, ciphertext, mac, dataLength, nonce, peer -> secret -> sessionPair.recvKey))
    {
      printf("Failed decryption\n");
        
      secudp_packet_destroy(packet);
-     secudp_free(plaintext);
+     secudp_free(data);
      return NULL;
    } 
    
    packet -> ciphertext = ciphertext;
-   packet -> plaintext = plaintext;
-   packet -> plainLength = plainLength;
+   packet -> data = data;
+   packet -> dataLength = dataLength;
    packet -> cipherLength = cipherLength;
    
    peer -> totalWaitingData -= packet -> cipherLength;
